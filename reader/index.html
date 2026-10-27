@@ -680,9 +680,51 @@
     return copy.textContent;
   }
 
+  // Chat logs paste code without ``` fences ("Ran terminal command: …" then a
+  // script), and Markdown then eats it: indentation goes, __name__ turns bold,
+  // PowerShell's $_ starts italics. A block that is plainly code gets a fence
+  // first. Markdown's own syntax (lists, headings, quotes, tables) and any
+  // line with Persian in it never count as code.
+  const CODE_PUNCT = /[;{}\[\]()=|$<>\\'"]/g;
+  const MD_LINE = /^\s{0,3}([-*+]\s|\d+[.)]\s|#{1,6}\s|>|\|)/;
+  const CODE_WORD = /^(import|from|def|class|for|while|if|elif|else|try|except|finally|with|return|print|const|let|var|function)\b.*[:(=]/;
+  // A shell command: a known program, then an argument with a flag, path or variable.
+  const COMMAND = /^(python3?|pip3?|npm|npx|node|git|cd|ls|cat|curl|docker|sudo|ssh|rclone|[A-Z][a-z]+-[A-Z]\w+)\s+\S*[-\/\\$.]/;
+  function codeLine(line) {
+    const t = line.trim();
+    if (!t || RTL_CHAR.test(t) || MD_LINE.test(line)) return false;
+    if (/^\s{2,}\S/.test(line) || CODE_WORD.test(t) || COMMAND.test(t)) return true;
+    return (t.match(CODE_PUNCT) || []).length / t.length >= 0.08;
+  }
+  function fenceLooseCode(text) {
+    const out = [];
+    let inFence = false;
+    for (const block of text.split(/\n{2,}/)) {
+      // Blocks with fences of their own, or inside one, stay as they are.
+      const marks = (block.match(/^\s*(```|~~~)/gm) || []).length;
+      if (inFence || marks) {
+        out.push(block);
+        if (marks % 2) inFence = !inFence;
+        continue;
+      }
+      const lines = block.split('\n');
+      // A short label before the code ("Ran terminal command: …") stays prose.
+      const label = lines[0].match(/^([A-Z][A-Za-z ]{2,40}:)\s+(.+)$/);
+      const body = label ? [label[2], ...lines.slice(1)] : lines;
+      const filled = body.filter(l => l.trim());
+      const code = filled.filter(codeLine).length;
+      if (!filled.length || code * 2 < filled.length) {
+        out.push(block);
+        continue;
+      }
+      out.push((label ? label[1] + '\n\n' : '') + '```\n' + body.join('\n') + '\n```');
+    }
+    return out.join('\n\n');
+  }
+
   function renderMarkdown(text) {
     // Pasted text is untrusted: marked passes raw HTML through, DOMPurify strips scripts.
-    out.innerHTML = DOMPurify.sanitize(marked.parse(text, { gfm: true, breaks: true }));
+    out.innerHTML = DOMPurify.sanitize(marked.parse(fenceLooseCode(text), { gfm: true, breaks: true }));
     let previous = uiDir();
     // Document order, so a block with no letters follows the one before it.
     // Lists and tables get a direction too: it decides the bullet side and column order.
