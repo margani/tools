@@ -26,10 +26,28 @@ Plain static HTML: no frameworks, no build step, no npm, no CI workflows.
 - Links between pages point at `…/index.html` files, so the site also works opened
   straight from disk (`file://`).
 
+## Tabs (root page)
+
+The root `index.html` is a tab workspace: a plain click on a tool card opens the tool
+in a new in-page tab (an iframe), so one tool can be open several times next to
+others; Ctrl/Shift/middle click still opens a real browser tab. Tabs can be laid out
+horizontally or vertically (remembered in localStorage). Open tabs are not restored
+after a reload, since their content lives only inside each tab.
+
+Every tool must behave inside a tab:
+- When `window.parent !== window`, add the class `embedded` to `<html>` and hide its
+  link back to `../index.html` (`.embedded .back { display: none; }`); otherwise that
+  link loads the whole workspace inside the tab.
+- Optionally name its tab after its content with
+  `parent.postMessage({ type: 'tools:title', title }, targetOrigin)`, where
+  `targetOrigin` is `location.origin`, or `'*'` only under `file://` (no origin to
+  name). An empty title restores the tool's name. See `persian-reader/index.html`.
+
 ## Adding a tool
 
-1. Create `<tool-name>/index.html`, with a link back to `../index.html`.
-2. Add a card for it to the root `index.html`.
+1. Create `<tool-name>/index.html`, with a `.back` link to `../index.html` that is
+   hidden when embedded (see Tabs).
+2. Add a card for it to the root `index.html`; the card's `<h2>` is the tab name.
 3. Add a row for it to the table in `README.md`, with its live URL.
 
 ## Hosting and running
