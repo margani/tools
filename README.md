@@ -1,17 +1,22 @@
 # tools
 
 A small collection of single-page browser utilities, each one a self-contained
-HTML file. No framework, no build step, nothing sent to a server.
+HTML file, in Persian and English. No framework, no build step, nothing sent to a
+server.
 
 Live: https://tools.whosane.dev
 
 The home page is a small tab workspace: each tool opens in its own tab, as many
-times as you like (two Persian readers with different texts, say), with the tabs
-along the top or down the side.
+times as you like (two readers with different texts, say), with the tabs along the
+top or down the side. The interface follows your browser's language (Persian or
+English) and has a switch on every page.
+
+The reader used to live at `/persian-reader/`; that address still forwards to
+`/reader/`.
 
 | Tool | What it does | Live |
 |---|---|---|
-| [Persian reader](persian-reader/) | Paste Persian text (even mixed with English) and read it right-to-left in a clear font, optionally rendered as Markdown, with reading settings (font, size, spacing, width, colour themes, reading ruler, focus view). | https://tools.whosane.dev/persian-reader/ |
+| [Reader](reader/) | Paste Persian or English text (or both) and read it in the right direction and a clear font, plain or rendered as Markdown, with reading settings (font, size, spacing, width, colour themes, reading ruler, focus view). | https://tools.whosane.dev/reader/ |
 
 ## Run it yourself
 
