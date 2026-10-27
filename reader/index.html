@@ -207,6 +207,10 @@
   article h3, article h4 { font-size: 1.1em; }
   article ul, article ol { margin: 0 0 .9em; padding-inline-start: 1.4em; }
   article li { margin: .2em 0; }
+  /* An item in the other direction from its list puts its bullet on the side
+     with no padding, on the card's edge (#18); give it that room itself. */
+  article :is(ul, ol)[dir="rtl"] > li[dir="ltr"],
+  article :is(ul, ol)[dir="ltr"] > li[dir="rtl"] { margin-inline-start: 1.4em; }
   article blockquote { margin: 0 0 .9em; padding-inline-start: 1em; border-inline-start: 3px solid var(--border); color: var(--muted); }
   article hr { border: 0; border-top: 1px solid var(--border); margin: 1.2em 0; }
   article a { color: var(--accent); }
@@ -228,10 +232,13 @@
     background: var(--code-bg);
     padding: 12px 14px;
     border-radius: 10px;
-    line-height: 1.6;
+    /* The size goes on pre, not on its code: a smaller code inside a pre at the
+       reading size kept the reading line boxes and double-spaced every line (#18). */
+    font-size: .8em;
+    line-height: 1.5;
     margin: 0 0 .9em;
   }
-  article pre code { background: none; padding: 0; font-size: .8em; }
+  article pre code { background: none; padding: 0; font-size: 1em; }
   /* Wide tables scroll inside the card instead of widening the page. */
   article table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 0 0 .9em; font-size: .9em; }
   /* overflow-wrap: anywhere (set on body) let cells shrink until words broke
@@ -694,7 +701,10 @@
     const t = line.trim();
     if (!t || RTL_CHAR.test(t) || MD_LINE.test(line)) return false;
     if (/^\s{2,}\S/.test(line) || CODE_WORD.test(t) || COMMAND.test(t)) return true;
-    return (t.match(CODE_PUNCT) || []).length / t.length >= 0.08;
+    // Links, inline code and URLs are prose punctuation: counting their brackets
+    // fenced plain paragraphs that held a link (#18).
+    const prose = t.replace(/`[^`]*`/g, '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '');
+    return (prose.match(CODE_PUNCT) || []).length / t.length >= 0.08;
   }
   function fenceLooseCode(text) {
     const out = [];
