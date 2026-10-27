@@ -26,6 +26,10 @@
     --radius: 14px;
     --reader-size: 20px;
     --reader-leading: 2;
+    --reader-words: 0em;
+    --reader-font: "Vazirmatn";
+    --column: 760px;
+    --dim: #00000066;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -38,6 +42,7 @@
       --accent-text: #0f1f1a;
       --focus: #6cc4a855;
       --code-bg: #26262a;
+      --dim: #0000008c;
     }
   }
   * { box-sizing: border-box; }
@@ -49,7 +54,7 @@
     line-height: 1.7;
     overflow-wrap: anywhere;
   }
-  .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+  .wrap { max-width: var(--column); margin: 0 auto; padding: 20px 16px 48px; }
   header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   h1 { font-size: 1.5rem; margin: 0; }
   .back { color: var(--muted); text-decoration: none; font-size: .95rem; }
@@ -94,9 +99,99 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 20px 22px;
+    color: var(--text);
+    font-family: var(--reader-font), "Vazirmatn", system-ui, sans-serif;
     font-size: var(--reader-size);
     line-height: var(--reader-leading);
+    word-spacing: var(--reader-words);
   }
+  article.justify p, article.justify li { text-align: justify; }
+
+  /* Reading themes: token sets for the reading area only, so the controls
+     keep the system theme. The swatches reuse them to show their colour. */
+  .theme-white { --surface: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --border: #e2e0da; --code-bg: #f1efe9; --accent: #2f6f5e; }
+  .theme-cream { --surface: #fbf7ec; --text: #2b2620; --muted: #74695a; --border: #e8dfc8; --code-bg: #f1e9d4; --accent: #7a5a1e; }
+  .theme-sepia { --surface: #f4ecd8; --text: #5b4636; --muted: #8a7461; --border: #e0d3b5; --code-bg: #eadfc4; --accent: #8a4b1c; }
+  .theme-grey  { --surface: #e9e9e9; --text: #222222; --muted: #5f5f5f; --border: #d0d0d0; --code-bg: #dcdcdc; --accent: #2f5f8a; }
+  .theme-mint  { --surface: #e6f4ea; --text: #1f3326; --muted: #4f6b58; --border: #c6e2cf; --code-bg: #d6ecdd; --accent: #2f6f4a; }
+  .theme-sky   { --surface: #e3effa; --text: #1c2b3a; --muted: #4c6075; --border: #c4d9ee; --code-bg: #d3e4f5; --accent: #2a5d8f; }
+  .theme-dark  { --surface: #1e1e21; --text: #e6e6e6; --muted: #9a9aa2; --border: #333338; --code-bg: #2a2a2e; --accent: #6cc4a8; }
+  .theme-black { --surface: #000000; --text: #d8d8d8; --muted: #8a8a8a; --border: #262626; --code-bg: #141414; --accent: #6cc4a8; }
+
+  .settings {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    align-items: center;
+    gap: 12px 16px;
+    margin: 0 0 20px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .settings[hidden] { display: none; }
+  .settings > label, .settings > .row-label { color: var(--muted); font-size: .95rem; }
+  .settings select {
+    font: inherit;
+    font-size: .95rem;
+    padding: 6px 10px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-width: 100%;
+  }
+  .range { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .range input { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+  .range output { flex: 0 0 3.2em; text-align: center; color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch {
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: .8rem;
+  }
+  .swatch.auto { width: auto; padding: 0 10px; border-radius: 999px; background: var(--bg); }
+  .swatch[aria-checked="true"] { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .settings .wide { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+  @media (max-width: 480px) {
+    .settings { grid-template-columns: 1fr; gap: 6px; }
+    .settings > label, .settings > .row-label { margin-top: 6px; }
+  }
+
+  /* Reading ruler: a clear band at the pointer, everything else dimmed. */
+  .ruler {
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    height: 2em;
+    pointer-events: none;
+    box-shadow: 0 0 0 100vmax var(--dim);
+    z-index: 5;
+  }
+  .ruler[hidden] { display: none; }
+
+  /* Focus view: only the text. */
+  .focus-exit { display: none; }
+  .focus-mode header, .focus-mode .lead, .focus-mode textarea, .focus-mode .toolbar,
+  .focus-mode .status, .focus-mode .settings, .focus-mode footer { display: none; }
+  .focus-mode .focus-exit {
+    display: block;
+    position: fixed;
+    top: 12px;
+    inset-inline-end: 12px;
+    z-index: 6;
+    font-size: .85rem;
+    min-height: 36px;
+    padding: 4px 12px;
+    color: var(--muted);
+  }
+  .focus-mode .wrap { padding-top: 56px; }
   /* No unicode-bidi: plaintext here: it picks the direction from the first
      letter and overrides the dir set by directionOf(), which put the full stop
      of "Claude گفت که…" on the wrong side. */
@@ -164,17 +259,62 @@
     <button type="button" class="primary" id="paste">چسباندن از کلیپ‌بورد 📋</button>
     <button type="button" id="clear">پاک کردن</button>
     <span class="spacer"></span>
-    <button type="button" id="smaller" aria-label="ریزتر کردن متن">ریزتر</button>
-    <button type="button" id="bigger" aria-label="درشت‌تر کردن متن">درشت‌تر</button>
+    <button type="button" id="settingsToggle" aria-expanded="false" aria-controls="settings">تنظیمات خواندن ⚙️</button>
+    <button type="button" id="focusOn">حالت تمرکز</button>
     <label class="check"><input type="checkbox" id="fixLetters" checked> یکسان‌سازی ی و ک عربی</label>
     <label class="check"><input type="checkbox" id="markdown"> نمایش مارک‌داون</label>
   </div>
   <div class="status" id="status" role="status"></div>
 
+  <section class="settings" id="settings" hidden aria-label="تنظیمات خواندن">
+    <label for="sFont">فونت</label>
+    <select id="sFont">
+      <option value="vazirmatn">وزیرمتن</option>
+      <option value="naskh">نوتو نسخ</option>
+      <option value="notosans">نوتو سنس</option>
+      <option value="markazi">مرکزی</option>
+      <option value="amiri">امیری</option>
+    </select>
+
+    <label for="sSize">اندازه‌ی متن</label>
+    <div class="range"><input type="range" id="sSize" min="14" max="34" step="1"><output for="sSize"></output></div>
+
+    <label for="sLeading">فاصله‌ی خطوط</label>
+    <div class="range"><input type="range" id="sLeading" min="1.4" max="2.8" step="0.1"><output for="sLeading"></output></div>
+
+    <label for="sWords">فاصله‌ی کلمات</label>
+    <div class="range"><input type="range" id="sWords" min="0" max="0.5" step="0.05"><output for="sWords"></output></div>
+
+    <label for="sColumn">پهنای ستون</label>
+    <div class="range"><input type="range" id="sColumn" min="420" max="1200" step="20"><output for="sColumn"></output></div>
+
+    <span class="row-label" id="themeLabel">رنگ زمینه</span>
+    <div class="swatches" id="sTheme" role="radiogroup" aria-labelledby="themeLabel">
+      <button type="button" class="swatch auto" role="radio" data-theme="auto">خودکار</button>
+      <button type="button" class="swatch theme-white" role="radio" data-theme="white" aria-label="سفید"></button>
+      <button type="button" class="swatch theme-cream" role="radio" data-theme="cream" aria-label="کرم"></button>
+      <button type="button" class="swatch theme-sepia" role="radio" data-theme="sepia" aria-label="قهوه‌ای روشن"></button>
+      <button type="button" class="swatch theme-grey" role="radio" data-theme="grey" aria-label="خاکستری"></button>
+      <button type="button" class="swatch theme-mint" role="radio" data-theme="mint" aria-label="سبز روشن"></button>
+      <button type="button" class="swatch theme-sky" role="radio" data-theme="sky" aria-label="آبی روشن"></button>
+      <button type="button" class="swatch theme-dark" role="radio" data-theme="dark" aria-label="تیره"></button>
+      <button type="button" class="swatch theme-black" role="radio" data-theme="black" aria-label="سیاه"></button>
+    </div>
+
+    <div class="wide">
+      <label class="check"><input type="checkbox" id="sJustify"> تراز دوطرفه</label>
+      <label class="check"><input type="checkbox" id="sRuler"> خط‌کش خواندن</label>
+      <span class="spacer"></span>
+      <button type="button" id="sReset">بازگشت به پیش‌فرض</button>
+    </div>
+  </section>
+
   <article id="out" lang="fa"><p class="empty" dir="rtl">هنوز متنی چسبانده نشده است.</p></article>
 
   <footer>متن فقط در همین مرورگر پردازش می‌شود و به هیچ جا فرستاده نمی‌شود.</footer>
 </div>
+<button type="button" class="focus-exit" id="focusOff">خروج از حالت تمرکز</button>
+<div class="ruler" id="ruler" hidden></div>
 
 <script>
   const input = document.getElementById('input');
@@ -199,23 +339,131 @@
     window.parent.postMessage({ type: 'tools:title', title }, location.protocol === 'file:' ? '*' : location.origin);
   }
 
-  // Font size is the one setting worth keeping between visits. Storage can be
-  // blocked (private windows, previews), so every access is guarded.
-  const SIZE_KEY = 'persian-reader:size';
-  const MIN_SIZE = 14, MAX_SIZE = 34;
-  function loadSize() {
+  // Reading settings, kept between visits. Storage can be blocked (private
+  // windows, previews), so every access is guarded and every value checked.
+  const SETTINGS_KEY = 'persian-reader:settings';
+  const FONTS = {
+    vazirmatn: { family: 'Vazirmatn', css: null }, // already loaded in <head>
+    naskh: { family: 'Noto Naskh Arabic', css: 'Noto+Naskh+Arabic:wght@400;700' },
+    notosans: { family: 'Noto Sans Arabic', css: 'Noto+Sans+Arabic:wght@400;700' },
+    markazi: { family: 'Markazi Text', css: 'Markazi+Text:wght@400;700' },
+    amiri: { family: 'Amiri', css: 'Amiri:wght@400;700' },
+  };
+  const THEMES = ['auto', 'white', 'cream', 'sepia', 'grey', 'mint', 'sky', 'dark', 'black'];
+  const RANGES = { size: [14, 34], leading: [1.4, 2.8], words: [0, 0.5], column: [420, 1200] };
+  const DEFAULTS = { font: 'vazirmatn', size: 20, leading: 2, words: 0, column: 760, theme: 'auto', justify: false, ruler: false };
+
+  function loadSettings() {
+    const s = { ...DEFAULTS };
     try {
-      const n = parseInt(localStorage.getItem(SIZE_KEY), 10);
-      if (n >= MIN_SIZE && n <= MAX_SIZE) return n;
+      const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null') || {};
+      // Earlier versions kept only the size, under its own key.
+      if (!('size' in saved)) saved.size = parseInt(localStorage.getItem('persian-reader:size'), 10);
+      if (saved.font in FONTS) s.font = saved.font;
+      if (THEMES.includes(saved.theme)) s.theme = saved.theme;
+      for (const [k, [lo, hi]] of Object.entries(RANGES)) {
+        const n = Number(saved[k]);
+        if (Number.isFinite(n) && n >= lo && n <= hi) s[k] = n;
+      }
+      s.justify = saved.justify === true;
+      s.ruler = saved.ruler === true;
     } catch (e) {}
-    return 20;
+    return s;
   }
-  function saveSize(n) {
-    try { localStorage.setItem(SIZE_KEY, String(n)); } catch (e) {}
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
   }
-  let size = loadSize();
-  function applySize() { document.documentElement.style.setProperty('--reader-size', size + 'px'); }
-  applySize();
+  let settings = loadSettings();
+
+  // Only the chosen font is fetched, so most visits load just Vazirmatn.
+  const loadedFonts = new Set(['vazirmatn']);
+  function loadFont(key) {
+    if (loadedFonts.has(key)) return;
+    loadedFonts.add(key);
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=' + FONTS[key].css + '&display=swap';
+    document.head.append(link);
+  }
+
+  const $ = id => document.getElementById(id);
+  const fa = (n, digits = 0) => n.toLocaleString('fa-IR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  function applySettings() {
+    const root = document.documentElement.style;
+    loadFont(settings.font);
+    root.setProperty('--reader-font', '"' + FONTS[settings.font].family + '"');
+    root.setProperty('--reader-size', settings.size + 'px');
+    root.setProperty('--reader-leading', settings.leading);
+    root.setProperty('--reader-words', settings.words + 'em');
+    root.setProperty('--column', settings.column + 'px');
+    out.className = (settings.theme === 'auto' ? '' : 'theme-' + settings.theme) + (settings.justify ? ' justify' : '');
+    $('sFont').value = settings.font;
+    $('sSize').value = settings.size;
+    $('sLeading').value = settings.leading;
+    $('sWords').value = settings.words;
+    $('sColumn').value = settings.column;
+    $('sSize').nextElementSibling.value = fa(settings.size);
+    $('sLeading').nextElementSibling.value = fa(settings.leading, 1);
+    $('sWords').nextElementSibling.value = fa(settings.words, 2);
+    $('sColumn').nextElementSibling.value = fa(settings.column);
+    $('sJustify').checked = settings.justify;
+    $('sRuler').checked = settings.ruler;
+    for (const sw of document.querySelectorAll('.swatch')) {
+      sw.setAttribute('aria-checked', sw.dataset.theme === settings.theme);
+    }
+    if (!settings.ruler) ruler.hidden = true;
+  }
+  function update(key, value) {
+    settings[key] = value;
+    applySettings();
+    saveSettings();
+  }
+
+  $('settingsToggle').addEventListener('click', () => {
+    const panel = $('settings');
+    panel.hidden = !panel.hidden;
+    $('settingsToggle').setAttribute('aria-expanded', !panel.hidden);
+  });
+  $('sFont').addEventListener('change', e => update('font', e.target.value));
+  for (const key of ['size', 'leading', 'words', 'column']) {
+    const id = 's' + key[0].toUpperCase() + key.slice(1);
+    $(id).addEventListener('input', e => update(key, Number(e.target.value)));
+  }
+  $('sJustify').addEventListener('change', e => update('justify', e.target.checked));
+  $('sRuler').addEventListener('change', e => update('ruler', e.target.checked));
+  $('sTheme').addEventListener('click', e => {
+    const sw = e.target.closest('.swatch');
+    if (sw) update('theme', sw.dataset.theme);
+  });
+  $('sReset').addEventListener('click', () => {
+    settings = { ...DEFAULTS };
+    applySettings();
+    saveSettings();
+  });
+
+  // Reading ruler: one line tall, centred on the pointer while it is over the text.
+  const ruler = $('ruler');
+  out.addEventListener('pointermove', e => {
+    if (!settings.ruler) return;
+    const h = settings.size * settings.leading;
+    ruler.style.height = h + 'px';
+    ruler.style.top = (e.clientY - h / 2) + 'px';
+    ruler.hidden = false;
+  });
+  out.addEventListener('pointerleave', () => { ruler.hidden = true; });
+
+  // Focus view: only the text; the button or Escape brings the rest back.
+  function setFocus(on) {
+    document.documentElement.classList.toggle('focus-mode', on);
+    if (on) out.scrollIntoView({ block: 'start' });
+  }
+  $('focusOn').addEventListener('click', () => setFocus(true));
+  $('focusOff').addEventListener('click', () => setFocus(false));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.documentElement.classList.contains('focus-mode')) setFocus(false);
+  });
+
+  applySettings();
 
   // dir="auto" only looks at the first strong character, so a Persian
   // sentence that opens with an English word ("Claude گفت که…") would flip to
@@ -323,12 +571,6 @@
     input.value = '';
     render();
     input.focus();
-  });
-  document.getElementById('smaller').addEventListener('click', () => {
-    size = Math.max(MIN_SIZE, size - 2); applySize(); saveSize(size);
-  });
-  document.getElementById('bigger').addEventListener('click', () => {
-    size = Math.min(MAX_SIZE, size + 2); applySize(); saveSize(size);
   });
 </script>
 </body>
