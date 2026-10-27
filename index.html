@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ابزارها</title>
-<meta name="description" content="ابزارهای کوچک یک‌صفحه‌ای برای کارهای روزمره.">
+<meta name="description" content="Small single-page tools for everyday tasks, in Persian and English.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700&display=swap" rel="stylesheet">
@@ -159,32 +159,33 @@
 </head>
 <body>
 <div class="app" id="app">
-  <nav class="tabbar" aria-label="تب‌ها">
+  <nav class="tabbar" data-i18n-aria="tabs" aria-label="تب‌ها">
     <div class="tabs" id="tabs" role="tablist">
       <div class="tab active" data-id="home">
-        <button type="button" class="tab-select" role="tab" aria-selected="true" aria-controls="panel-home" id="tab-home">ابزارها</button>
+        <button type="button" class="tab-select" role="tab" aria-selected="true" aria-controls="panel-home" id="tab-home" data-i18n="home">ابزارها</button>
       </div>
     </div>
+    <button type="button" class="layout-toggle" id="langToggle"></button>
     <button type="button" class="layout-toggle" id="layoutToggle"></button>
   </nav>
 
   <main class="panels" id="panels">
     <section class="panel home" id="panel-home" role="tabpanel" aria-labelledby="tab-home">
       <div class="wrap">
-        <h1>ابزارها</h1>
-        <p class="lead">ابزارهای کوچک یک‌صفحه‌ای برای کارهای روزمره، بدون ثبت‌نام و بدون ردیابی.</p>
+        <h1 data-i18n="home">ابزارها</h1>
+        <p class="lead" data-i18n="lead">ابزارهای کوچک یک‌صفحه‌ای برای کارهای روزمره، بدون ثبت‌نام و بدون ردیابی.</p>
 
         <ul class="grid">
           <li>
-            <a class="card" href="persian-reader/index.html">
-              <h2>خواننده‌ی فارسی</h2>
-              <p>متن فارسی را بچسبانید و راست‌به‌چپ و با فونت خوانا بخوانید.</p>
+            <a class="card" href="reader/index.html" data-tool="reader">
+              <h2 data-i18n="reader">خواننده</h2>
+              <p data-i18n="reader-desc">متن فارسی یا انگلیسی را بچسبانید و با جهت درست، فونت خوانا و مارک‌داون بخوانید.</p>
             </a>
           </li>
         </ul>
 
-        <p class="hint">هر ابزار در یک تب تازه باز می‌شود؛ می‌توانید از یک ابزار چند تب داشته باشید.</p>
-        <footer>کد منبع این ابزارها آزاد است: <a href="https://github.com/margani/tools">GitHub</a></footer>
+        <p class="hint" data-i18n="hint">هر ابزار در یک تب تازه باز می‌شود؛ می‌توانید از یک ابزار چند تب داشته باشید.</p>
+        <footer><span data-i18n="source">کد منبع این ابزارها آزاد است:</span> <a href="https://github.com/margani/tools">GitHub</a></footer>
       </div>
     </section>
   </main>
@@ -195,58 +196,138 @@
   const tabsEl = document.getElementById('tabs');
   const panelsEl = document.getElementById('panels');
   const layoutToggle = document.getElementById('layoutToggle');
+  const langToggle = document.getElementById('langToggle');
 
-  // Layout is the one thing remembered. Open tabs are not restored: their
-  // text lives only inside each tab, so a restored tab would come back empty.
+  // UI language (#14), shared with every tool through tools:lang. The first
+  // visit follows the browser: Persian browsers get فارسی, the rest English.
+  const STRINGS = {
+    fa: {
+      title: 'ابزارها',
+      home: 'ابزارها',
+      tabs: 'تب‌ها',
+      lead: 'ابزارهای کوچک یک‌صفحه‌ای برای کارهای روزمره، بدون ثبت‌نام و بدون ردیابی.',
+      reader: 'خواننده',
+      'reader-desc': 'متن فارسی یا انگلیسی را بچسبانید و با جهت درست، فونت خوانا و مارک‌داون بخوانید.',
+      hint: 'هر ابزار در یک تب تازه باز می‌شود؛ می‌توانید از یک ابزار چند تب داشته باشید.',
+      source: 'کد منبع این ابزارها آزاد است:',
+      vertical: 'عمودی',
+      horizontal: 'افقی',
+      layoutLong: n => 'چیدمان ' + n + ' تب‌ها',
+      close: n => 'بستن تب ' + n,
+    },
+    en: {
+      title: 'Tools',
+      home: 'Tools',
+      tabs: 'Tabs',
+      lead: 'Small single-page tools for everyday tasks, with no sign-up and no tracking.',
+      reader: 'Reader',
+      'reader-desc': 'Paste Persian or English text and read it in the right direction, in a clear font, plain or Markdown.',
+      hint: 'Each tool opens in a new tab; you can have several tabs of the same tool.',
+      source: 'These tools are open source:',
+      vertical: 'Vertical',
+      horizontal: 'Horizontal',
+      layoutLong: n => n + ' tabs',
+      close: n => 'Close tab ' + n,
+    },
+  };
+  const LANG_KEY = 'tools:lang';
+  let lang = 'en';
+  try {
+    const saved = localStorage.getItem(LANG_KEY);
+    lang = saved === 'fa' || saved === 'en' ? saved : null;
+  } catch (e) { lang = null; }
+  if (!lang) lang = (navigator.languages || [navigator.language]).some(l => /^fa(-|$)/i.test(l)) ? 'fa' : 'en';
+  const t = key => STRINGS[lang][key];
+  // file:// pages have no origin to name, so only there the message goes to '*'.
+  const frameOrigin = location.protocol === 'file:' ? '*' : location.origin;
+
+  // Layout is remembered too. Open tabs are not restored: their text lives
+  // only inside each tab, so a restored tab would come back empty.
   const LAYOUT_KEY = 'tools:tab-layout';
   let layout = 'horizontal';
   try { if (localStorage.getItem(LAYOUT_KEY) === 'vertical') layout = 'vertical'; } catch (e) {}
   function applyLayout() {
     app.classList.toggle('vertical', layout === 'vertical');
-    const next = layout === 'vertical' ? 'افقی' : 'عمودی';
+    const next = t(layout === 'vertical' ? 'horizontal' : 'vertical');
     // The full label takes half the bar at phone width; there only the word shows.
-    layoutToggle.innerHTML = '<span class="long">چیدمان ' + next + ' تب‌ها</span><span class="short">' + next + '</span>';
-    layoutToggle.title = 'چیدمان ' + next + ' تب‌ها';
-    layoutToggle.setAttribute('aria-label', layoutToggle.title);
+    layoutToggle.replaceChildren();
+    const long = document.createElement('span');
+    long.className = 'long';
+    long.textContent = t('layoutLong')(next);
+    const short = document.createElement('span');
+    short.className = 'short';
+    short.textContent = next;
+    layoutToggle.append(long, short);
+    layoutToggle.title = long.textContent;
+    layoutToggle.setAttribute('aria-label', long.textContent);
   }
-  applyLayout();
   layoutToggle.addEventListener('click', () => {
     layout = layout === 'vertical' ? 'horizontal' : 'vertical';
     applyLayout();
     try { localStorage.setItem(LAYOUT_KEY, layout); } catch (e) {}
   });
 
-  const tabs = new Map(); // id -> { tab, panel, name }
+  const tabs = new Map(); // id -> { tab, panel, tool, count, title }
   tabs.set('home', { tab: tabsEl.querySelector('[data-id="home"]'), panel: document.getElementById('panel-home') });
   let seq = 0;
-  const opened = {}; // tool href -> how many tabs of it were opened, for "خواننده‌ی فارسی ۲"
+  const opened = {}; // tool -> how many tabs of it were opened, for "خواننده ۲"
+
+  // A tool's own name for its tab (its first words) wins; otherwise the tool's
+  // name in the UI language, numbered from the second tab of the same tool.
+  function labelOf(entry) {
+    if (entry.title) return entry.title;
+    const name = t(entry.tool);
+    return entry.count > 1 ? name + ' ' + entry.count.toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US') : name;
+  }
+  function refreshLabel(entry) {
+    const btn = entry.tab.querySelector('.tab-select');
+    btn.textContent = labelOf(entry);
+    btn.title = btn.textContent;
+    entry.panel.title = btn.textContent;
+    entry.tab.querySelector('.tab-close').setAttribute('aria-label', t('close')(btn.textContent));
+  }
+
+  function applyLang() {
+    const root = document.documentElement;
+    root.lang = lang;
+    root.dir = lang === 'fa' ? 'rtl' : 'ltr';
+    document.title = t('title');
+    for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+    for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+    langToggle.textContent = lang === 'fa' ? 'English' : 'فارسی';
+    langToggle.lang = lang === 'fa' ? 'en' : 'fa';
+    applyLayout();
+    for (const [id, entry] of tabs) {
+      if (id === 'home') continue;
+      refreshLabel(entry);
+      entry.panel.contentWindow?.postMessage({ type: 'tools:lang', lang }, frameOrigin);
+    }
+  }
+  langToggle.addEventListener('click', () => {
+    lang = lang === 'fa' ? 'en' : 'fa';
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    applyLang();
+  });
 
   function activate(id) {
-    for (const [key, t] of tabs) {
+    for (const [key, entry] of tabs) {
       const on = key === id;
-      t.tab.classList.toggle('active', on);
-      t.tab.querySelector('.tab-select').setAttribute('aria-selected', on);
-      t.panel.hidden = !on;
+      entry.tab.classList.toggle('active', on);
+      entry.tab.querySelector('.tab-select').setAttribute('aria-selected', on);
+      entry.panel.hidden = !on;
     }
     tabs.get(id).tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
-  function setLabel(t, label) {
-    const btn = t.tab.querySelector('.tab-select');
-    btn.textContent = label;
-    btn.title = label;
-  }
-
-  function openTool(href, name) {
+  function openTool(href, tool) {
     const id = 't' + (++seq);
-    opened[href] = (opened[href] || 0) + 1;
-    const label = opened[href] > 1 ? name + ' ' + opened[href].toLocaleString('fa-IR') : name;
+    opened[tool] = (opened[tool] || 0) + 1;
 
     const panel = document.createElement('iframe');
     panel.className = 'panel';
     panel.id = 'panel-' + id;
-    panel.src = href;
-    panel.title = label;
+    // The tool may not share this page's storage (file://), so it is told the language.
+    panel.src = href + '?lang=' + lang;
     panel.setAttribute('role', 'tabpanel');
     panel.setAttribute('aria-labelledby', 'tab-' + id);
 
@@ -263,12 +344,11 @@
     close.type = 'button';
     close.className = 'tab-close';
     close.textContent = '×';
-    close.setAttribute('aria-label', 'بستن تب ' + label);
     tab.append(select, close);
 
-    const t = { tab, panel, name: label };
-    setLabel(t, label);
-    tabs.set(id, t);
+    const entry = { tab, panel, tool, count: opened[tool], title: '' };
+    tabs.set(id, entry);
+    refreshLabel(entry);
     tabsEl.append(tab);
     panelsEl.append(panel);
     activate(id);
@@ -276,10 +356,10 @@
 
   function closeTab(id) {
     const ids = [...tabs.keys()];
-    const wasActive = tabs.get(id).tab.classList.contains('active');
-    const t = tabs.get(id);
-    t.tab.remove();
-    t.panel.remove();
+    const entry = tabs.get(id);
+    const wasActive = entry.tab.classList.contains('active');
+    entry.tab.remove();
+    entry.panel.remove();
     tabs.delete(id);
     if (wasActive) activate(ids[ids.indexOf(id) - 1] || 'home');
   }
@@ -299,7 +379,7 @@
     card.addEventListener('click', e => {
       if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
-      openTool(card.getAttribute('href'), card.querySelector('h2').textContent.trim());
+      openTool(card.getAttribute('href'), card.dataset.tool);
     });
   }
 
@@ -308,13 +388,15 @@
   // count; an empty title restores the tool's name.
   window.addEventListener('message', e => {
     if (!e.data || e.data.type !== 'tools:title') return;
-    for (const t of tabs.values()) {
-      if (t.panel.contentWindow && t.panel.contentWindow === e.source) {
-        const title = String(e.data.title || '').trim().slice(0, 60);
-        setLabel(t, title || t.name);
+    for (const entry of tabs.values()) {
+      if (entry.panel.contentWindow && entry.panel.contentWindow === e.source) {
+        entry.title = String(e.data.title || '').trim().slice(0, 60);
+        refreshLabel(entry);
       }
     }
   });
+
+  applyLang();
 </script>
 </body>
 </html>

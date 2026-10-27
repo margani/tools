@@ -1,0 +1,731 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>خواننده</title>
+<meta name="description" content="Paste Persian or English text and read it with the right direction in a clear font, plain or Markdown.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- Markdown option only. Pinned with integrity hashes; nothing is sent anywhere. -->
+<script defer src="https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.umd.js" integrity="sha384-rATToyt6602Jnq8c7w8HZwmyOUgPL7mzxX01FBWoV48ns/EgkakGozpES+PnaYOI" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.min.js" integrity="sha384-P0JNneQf81HOl9VwNXK76cQ9VMD6Nfsnepxb0cCOg8+UzEdzgPHAPV4wVQrvYQSx" crossorigin="anonymous"></script>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --muted: #6b6b70;
+    --border: #e2e0da;
+    --accent: #2f6f5e;
+    --accent-text: #ffffff;
+    --focus: #2f6f5e55;
+    --code-bg: #f1efe9;
+    --radius: 14px;
+    --reader-size: 20px;
+    --reader-leading: 2;
+    --reader-words: 0em;
+    --reader-font: "Vazirmatn";
+    --column: 760px;
+    --dim: #00000066;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416;
+      --surface: #1e1e21;
+      --text: #ececee;
+      --muted: #9a9aa2;
+      --border: #333338;
+      --accent: #6cc4a8;
+      --accent-text: #0f1f1a;
+      --focus: #6cc4a855;
+      --code-bg: #26262a;
+      --dim: #0000008c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Vazirmatn", system-ui, sans-serif;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  .wrap { max-width: var(--column); margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  .back { color: var(--muted); text-decoration: none; font-size: .95rem; }
+  .back:hover { color: var(--accent); }
+  .header-end { display: inline-flex; align-items: center; gap: 12px; }
+  .lang-toggle { min-height: 32px; padding: 2px 12px; font-size: .85rem; color: var(--muted); }
+  /* Inside a tab of the root page the link would open the tab bar inside the
+     tab, and the tab bar has its own language switch. */
+  .embedded .back, .embedded .lang-toggle { display: none; }
+  .lead { color: var(--muted); margin: 4px 0 16px; }
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+    padding: 12px 14px;
+    font: inherit;
+    font-size: 1rem;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  textarea:focus, button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 20px; }
+  button {
+    font: inherit;
+    font-size: .95rem;
+    padding: 8px 14px;
+    min-height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .spacer { flex: 1 1 auto; }
+  .check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: .95rem; cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; }
+  .status { color: var(--muted); font-size: .9rem; min-height: 1.5em; margin: -12px 0 12px; }
+  article {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    color: var(--text);
+    font-family: var(--reader-font), "Vazirmatn", system-ui, sans-serif;
+    font-size: var(--reader-size);
+    line-height: var(--reader-leading);
+    word-spacing: var(--reader-words);
+  }
+  article.justify p, article.justify li { text-align: justify; }
+
+  /* Reading themes: token sets for the reading area only, so the controls
+     keep the system theme. The swatches reuse them to show their colour. */
+  .theme-white { --surface: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --border: #e2e0da; --code-bg: #f1efe9; --accent: #2f6f5e; }
+  .theme-cream { --surface: #fbf7ec; --text: #2b2620; --muted: #74695a; --border: #e8dfc8; --code-bg: #f1e9d4; --accent: #7a5a1e; }
+  .theme-sepia { --surface: #f4ecd8; --text: #5b4636; --muted: #8a7461; --border: #e0d3b5; --code-bg: #eadfc4; --accent: #8a4b1c; }
+  .theme-grey  { --surface: #e9e9e9; --text: #222222; --muted: #5f5f5f; --border: #d0d0d0; --code-bg: #dcdcdc; --accent: #2f5f8a; }
+  .theme-mint  { --surface: #e6f4ea; --text: #1f3326; --muted: #4f6b58; --border: #c6e2cf; --code-bg: #d6ecdd; --accent: #2f6f4a; }
+  .theme-sky   { --surface: #e3effa; --text: #1c2b3a; --muted: #4c6075; --border: #c4d9ee; --code-bg: #d3e4f5; --accent: #2a5d8f; }
+  .theme-dark  { --surface: #1e1e21; --text: #e6e6e6; --muted: #9a9aa2; --border: #333338; --code-bg: #2a2a2e; --accent: #6cc4a8; }
+  .theme-black { --surface: #000000; --text: #d8d8d8; --muted: #8a8a8a; --border: #262626; --code-bg: #141414; --accent: #6cc4a8; }
+
+  .settings {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    align-items: center;
+    gap: 12px 16px;
+    margin: 0 0 20px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .settings[hidden] { display: none; }
+  .settings > label, .settings > .row-label { color: var(--muted); font-size: .95rem; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    min-height: 36px;
+    padding: 4px 14px;
+    font-size: 1rem;
+    background: var(--bg);
+  }
+  .pill[aria-checked="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .range { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .range input { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+  .range output { flex: 0 0 3.2em; text-align: center; color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch {
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: .8rem;
+  }
+  .swatch.auto { width: auto; padding: 0 10px; border-radius: 999px; background: var(--bg); }
+  .swatch[aria-checked="true"] { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .settings .wide { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+  @media (max-width: 480px) {
+    .settings { grid-template-columns: 1fr; gap: 6px; }
+    .settings > label, .settings > .row-label { margin-top: 6px; }
+  }
+
+  /* Reading ruler: a clear band at the pointer, everything else dimmed. */
+  .ruler {
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    height: 2em;
+    pointer-events: none;
+    box-shadow: 0 0 0 100vmax var(--dim);
+    z-index: 5;
+  }
+  .ruler[hidden] { display: none; }
+
+  /* Focus view: only the text. */
+  .focus-exit { display: none; }
+  .focus-mode header, .focus-mode .lead, .focus-mode textarea, .focus-mode .toolbar,
+  .focus-mode .status, .focus-mode .settings, .focus-mode footer { display: none; }
+  .focus-mode .focus-exit {
+    display: block;
+    position: fixed;
+    top: 12px;
+    inset-inline-end: 12px;
+    z-index: 6;
+    font-size: .85rem;
+    min-height: 36px;
+    padding: 4px 12px;
+    color: var(--muted);
+  }
+  .focus-mode .wrap { padding-top: 56px; }
+  /* No unicode-bidi: plaintext here: it picks the direction from the first
+     letter and overrides the dir set by directionOf(), which put the full stop
+     of "Claude گفت که…" on the wrong side. */
+  article p { margin: 0 0 .9em; }
+  article > :first-child { margin-top: 0; }
+  article > :last-child { margin-bottom: 0; }
+  /* Markdown blocks. Every block carries its own dir, so text-align: start
+     follows it. */
+  article h1, article h2, article h3, article h4 { line-height: 1.5; margin: 1.2em 0 .5em; }
+  article h1 { font-size: 1.5em; }
+  article h2 { font-size: 1.3em; }
+  article h3, article h4 { font-size: 1.1em; }
+  article ul, article ol { margin: 0 0 .9em; padding-inline-start: 1.4em; }
+  article li { margin: .2em 0; }
+  article blockquote { margin: 0 0 .9em; padding-inline-start: 1em; border-inline-start: 3px solid var(--border); color: var(--muted); }
+  article hr { border: 0; border-top: 1px solid var(--border); margin: 1.2em 0; }
+  article a { color: var(--accent); }
+  /* isolate: a path like user/hossein/us43519_odcr must not reorder the
+     Persian words around it. */
+  article code {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .85em;
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 6px;
+  }
+  article pre {
+    direction: ltr;
+    text-align: left;
+    overflow-x: auto;
+    background: var(--code-bg);
+    padding: 12px 14px;
+    border-radius: 10px;
+    line-height: 1.6;
+    margin: 0 0 .9em;
+  }
+  article pre code { background: none; padding: 0; font-size: .8em; }
+  /* Wide tables scroll inside the card instead of widening the page. */
+  article table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 0 0 .9em; font-size: .9em; }
+  /* overflow-wrap: anywhere (set on body) let cells shrink until words broke
+     letter by letter at 390px; whole words plus the table's own scroll read better. */
+  article th, article td { border: 1px solid var(--border); padding: 6px 10px; text-align: start; vertical-align: top; overflow-wrap: normal; min-width: 6em; }
+  article th { background: var(--code-bg); }
+  article .empty { color: var(--muted); font-size: 1rem; }
+  footer { margin-top: 28px; color: var(--muted); font-size: .85rem; }
+  @media (max-width: 480px) {
+    article { padding: 16px; }
+    .spacer { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 data-i18n="title">خواننده</h1>
+    <span class="header-end">
+      <button type="button" class="lang-toggle" id="langToggle"></button>
+      <a class="back" href="../index.html" data-i18n="back">همه‌ی ابزارها ←</a>
+    </span>
+  </header>
+  <p class="lead" data-i18n="lead">متن را از هر جایی بچسبانید تا با جهت درست و فونت خوانا نمایش داده شود؛ فارسی، انگلیسی یا هر دو، ساده یا مارک‌داون.</p>
+
+  <textarea id="input" dir="auto" data-i18n-aria="input" data-i18n-placeholder="placeholder" aria-label="متن ورودی" placeholder="متن را اینجا بچسبانید…" spellcheck="false"></textarea>
+
+  <div class="toolbar">
+    <button type="button" class="primary" id="paste" data-i18n="paste">چسباندن از کلیپ‌بورد 📋</button>
+    <button type="button" id="clear" data-i18n="clear">پاک کردن</button>
+    <span class="spacer"></span>
+    <button type="button" id="settingsToggle" aria-expanded="false" aria-controls="settings" data-i18n="settingsButton">تنظیمات خواندن ⚙️</button>
+    <button type="button" id="focusOn" data-i18n="focus">حالت تمرکز</button>
+    <label class="check"><input type="checkbox" id="fixLetters" checked> <span data-i18n="fixLetters">یکسان‌سازی ی و ک عربی</span></label>
+    <label class="check"><input type="checkbox" id="markdown"> <span data-i18n="markdown">نمایش مارک‌داون</span></label>
+  </div>
+  <div class="status" id="status" role="status"></div>
+
+  <section class="settings" id="settings" hidden data-i18n-aria="settings" aria-label="تنظیمات خواندن">
+    <span class="row-label" id="fontLabel" data-i18n="font">فونت</span>
+    <div class="pills" id="sFont" role="radiogroup" aria-labelledby="fontLabel">
+      <button type="button" class="pill" role="radio" data-font="vazirmatn" data-i18n="font-vazirmatn">وزیرمتن</button>
+      <button type="button" class="pill" role="radio" data-font="naskh" data-i18n="font-naskh">نوتو نسخ</button>
+      <button type="button" class="pill" role="radio" data-font="notosans" data-i18n="font-notosans">نوتو سنس</button>
+      <button type="button" class="pill" role="radio" data-font="markazi" data-i18n="font-markazi">مرکزی</button>
+      <button type="button" class="pill" role="radio" data-font="amiri" data-i18n="font-amiri">امیری</button>
+    </div>
+
+    <label for="sSize" data-i18n="size">اندازه‌ی متن</label>
+    <div class="range"><input type="range" id="sSize" min="14" max="34" step="1"><output for="sSize"></output></div>
+
+    <label for="sLeading" data-i18n="leading">فاصله‌ی خطوط</label>
+    <div class="range"><input type="range" id="sLeading" min="1.4" max="2.8" step="0.1"><output for="sLeading"></output></div>
+
+    <label for="sWords" data-i18n="words">فاصله‌ی کلمات</label>
+    <div class="range"><input type="range" id="sWords" min="0" max="0.5" step="0.05"><output for="sWords"></output></div>
+
+    <label for="sColumn" data-i18n="column">پهنای ستون</label>
+    <div class="range"><input type="range" id="sColumn" min="420" max="1200" step="20"><output for="sColumn"></output></div>
+
+    <span class="row-label" id="themeLabel" data-i18n="theme">رنگ زمینه</span>
+    <div class="swatches" id="sTheme" role="radiogroup" aria-labelledby="themeLabel">
+      <button type="button" class="swatch auto" role="radio" data-theme="auto" data-i18n="theme-auto">خودکار</button>
+      <button type="button" class="swatch theme-white" role="radio" data-theme="white" data-i18n-aria="theme-white" aria-label="سفید"></button>
+      <button type="button" class="swatch theme-cream" role="radio" data-theme="cream" data-i18n-aria="theme-cream" aria-label="کرم"></button>
+      <button type="button" class="swatch theme-sepia" role="radio" data-theme="sepia" data-i18n-aria="theme-sepia" aria-label="قهوه‌ای روشن"></button>
+      <button type="button" class="swatch theme-grey" role="radio" data-theme="grey" data-i18n-aria="theme-grey" aria-label="خاکستری"></button>
+      <button type="button" class="swatch theme-mint" role="radio" data-theme="mint" data-i18n-aria="theme-mint" aria-label="سبز روشن"></button>
+      <button type="button" class="swatch theme-sky" role="radio" data-theme="sky" data-i18n-aria="theme-sky" aria-label="آبی روشن"></button>
+      <button type="button" class="swatch theme-dark" role="radio" data-theme="dark" data-i18n-aria="theme-dark" aria-label="تیره"></button>
+      <button type="button" class="swatch theme-black" role="radio" data-theme="black" data-i18n-aria="theme-black" aria-label="سیاه"></button>
+    </div>
+
+    <div class="wide">
+      <label class="check"><input type="checkbox" id="sJustify"> <span data-i18n="justify">تراز دوطرفه</span></label>
+      <label class="check"><input type="checkbox" id="sRuler"> <span data-i18n="ruler">خط‌کش خواندن</span></label>
+      <span class="spacer"></span>
+      <button type="button" id="sReset" data-i18n="reset">بازگشت به پیش‌فرض</button>
+    </div>
+  </section>
+
+  <article id="out"><p class="empty" dir="rtl" data-i18n="empty">هنوز متنی چسبانده نشده است.</p></article>
+
+  <footer data-i18n="footer">متن فقط در همین مرورگر پردازش می‌شود و به هیچ جا فرستاده نمی‌شود.</footer>
+</div>
+<button type="button" class="focus-exit" id="focusOff" data-i18n="focusExit">خروج از حالت تمرکز</button>
+<div class="ruler" id="ruler" hidden></div>
+
+<script>
+  const input = document.getElementById('input');
+  const out = document.getElementById('out');
+  const statusEl = document.getElementById('status');
+  const fixLetters = document.getElementById('fixLetters');
+  const markdown = document.getElementById('markdown');
+
+  // Renamed from persian-reader (#13): keep what people saved under the old keys.
+  try {
+    for (const k of ['settings', 'markdown', 'size']) {
+      const old = localStorage.getItem('persian-reader:' + k);
+      if (old !== null && localStorage.getItem('reader:' + k) === null) localStorage.setItem('reader:' + k, old);
+    }
+  } catch (e) {}
+
+  // UI language (#14). Shared by every tool through tools:lang; a tab of the
+  // root page is told its language in ?lang= and by postMessage.
+  const STRINGS = {
+    fa: {
+      title: 'خواننده',
+      back: 'همه‌ی ابزارها ←',
+      lead: 'متن را از هر جایی بچسبانید تا با جهت درست و فونت خوانا نمایش داده شود؛ فارسی، انگلیسی یا هر دو، ساده یا مارک‌داون.',
+      input: 'متن ورودی',
+      placeholder: 'متن را اینجا بچسبانید…',
+      paste: 'چسباندن از کلیپ‌بورد 📋',
+      clear: 'پاک کردن',
+      settingsButton: 'تنظیمات خواندن ⚙️',
+      settings: 'تنظیمات خواندن',
+      focus: 'حالت تمرکز',
+      fixLetters: 'یکسان‌سازی ی و ک عربی',
+      markdown: 'نمایش مارک‌داون',
+      font: 'فونت',
+      'font-vazirmatn': 'وزیرمتن',
+      'font-naskh': 'نوتو نسخ',
+      'font-notosans': 'نوتو سنس',
+      'font-markazi': 'مرکزی',
+      'font-amiri': 'امیری',
+      size: 'اندازه‌ی متن',
+      leading: 'فاصله‌ی خطوط',
+      words: 'فاصله‌ی کلمات',
+      column: 'پهنای ستون',
+      theme: 'رنگ زمینه',
+      'theme-auto': 'خودکار',
+      'theme-white': 'سفید',
+      'theme-cream': 'کرم',
+      'theme-sepia': 'قهوه‌ای روشن',
+      'theme-grey': 'خاکستری',
+      'theme-mint': 'سبز روشن',
+      'theme-sky': 'آبی روشن',
+      'theme-dark': 'تیره',
+      'theme-black': 'سیاه',
+      justify: 'تراز دوطرفه',
+      ruler: 'خط‌کش خواندن',
+      reset: 'بازگشت به پیش‌فرض',
+      empty: 'هنوز متنی چسبانده نشده است.',
+      footer: 'متن فقط در همین مرورگر پردازش می‌شود و به هیچ جا فرستاده نمی‌شود.',
+      focusExit: 'خروج از حالت تمرکز',
+      mdMissing: 'نمایش مارک‌داون در دسترس نیست، چون اسکریپت آن بارگذاری نشد؛ متن ساده نمایش داده می‌شود.',
+      clipDenied: 'مرورگر اجازه‌ی خواندن کلیپ‌بورد را نداد؛ متن را با Ctrl+V در کادر بالا بچسبانید.',
+    },
+    en: {
+      title: 'Reader',
+      back: '← All tools',
+      lead: 'Paste text from anywhere and read it in the right direction and a clear font: Persian, English or both, plain or Markdown.',
+      input: 'Input text',
+      placeholder: 'Paste text here…',
+      paste: 'Paste from clipboard 📋',
+      clear: 'Clear',
+      settingsButton: 'Reading settings ⚙️',
+      settings: 'Reading settings',
+      focus: 'Focus view',
+      fixLetters: 'Use Persian ی and ک',
+      markdown: 'Render Markdown',
+      font: 'Font',
+      'font-vazirmatn': 'Vazirmatn',
+      'font-naskh': 'Noto Naskh',
+      'font-notosans': 'Noto Sans',
+      'font-markazi': 'Markazi',
+      'font-amiri': 'Amiri',
+      size: 'Text size',
+      leading: 'Line spacing',
+      words: 'Word spacing',
+      column: 'Column width',
+      theme: 'Background',
+      'theme-auto': 'Auto',
+      'theme-white': 'White',
+      'theme-cream': 'Cream',
+      'theme-sepia': 'Sepia',
+      'theme-grey': 'Grey',
+      'theme-mint': 'Mint',
+      'theme-sky': 'Sky',
+      'theme-dark': 'Dark',
+      'theme-black': 'Black',
+      justify: 'Justify',
+      ruler: 'Reading ruler',
+      reset: 'Reset',
+      empty: 'Nothing pasted yet.',
+      footer: 'Text is processed only in this browser and is never sent anywhere.',
+      focusExit: 'Exit focus view',
+      mdMissing: 'Markdown is unavailable because its script did not load; showing plain text.',
+      clipDenied: 'The browser did not allow reading the clipboard; paste with Ctrl+V into the box above.',
+    },
+  };
+  const LANG_KEY = 'tools:lang';
+  function initialLang() {
+    const asked = new URLSearchParams(location.search).get('lang');
+    if (asked === 'fa' || asked === 'en') return asked;
+    try {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved === 'fa' || saved === 'en') return saved;
+    } catch (e) {}
+    return (navigator.languages || [navigator.language]).some(l => /^fa(-|$)/i.test(l)) ? 'fa' : 'en';
+  }
+  let lang = initialLang();
+  const t = key => STRINGS[lang][key];
+  const uiDir = () => (lang === 'fa' ? 'rtl' : 'ltr');
+  const langToggle = document.getElementById('langToggle');
+
+  function applyLang() {
+    const root = document.documentElement;
+    root.lang = lang;
+    root.dir = uiDir();
+    document.title = t('title');
+    for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+    for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+    for (const el of document.querySelectorAll('[data-i18n-placeholder]')) el.placeholder = t(el.dataset.i18nPlaceholder);
+    langToggle.textContent = lang === 'fa' ? 'English' : 'فارسی';
+    langToggle.lang = lang === 'fa' ? 'en' : 'fa';
+    applySettings(); // numbers are written in the UI's digits
+    render();        // the empty-state text and letterless lines follow the UI
+  }
+  function setLang(next, remember) {
+    if (next !== 'fa' && next !== 'en') return;
+    lang = next;
+    if (remember) try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    applyLang();
+  }
+  langToggle.addEventListener('click', () => setLang(lang === 'fa' ? 'en' : 'fa', true));
+  // Another page of the site changed the language (storage), or the tab bar did (message).
+  window.addEventListener('storage', e => { if (e.key === LANG_KEY) setLang(e.newValue, false); });
+  window.addEventListener('message', e => {
+    if (e.source === window.parent && e.data && e.data.type === 'tools:lang') setLang(e.data.lang, false);
+  });
+
+  const embedded = window.parent !== window;
+  if (embedded) document.documentElement.classList.add('embedded');
+
+  // Names this tab in the root page after the first words of the text, so two
+  // reader tabs can be told apart. Same-origin only, so a site that frames this
+  // page never sees the text; file:// has no origin to name, hence '*'.
+  let lastTitle = null;
+  function postTitle(text) {
+    if (!embedded) return;
+    const first = text.split('\n').map(s => s.replace(/[#*`>|]+/g, ' ').trim()).find(Boolean) || '';
+    const title = first.split(/\s+/).slice(0, 5).join(' ').slice(0, 40);
+    if (title === lastTitle) return;
+    lastTitle = title;
+    window.parent.postMessage({ type: 'tools:title', title }, location.protocol === 'file:' ? '*' : location.origin);
+  }
+
+  // Reading settings, kept between visits. Storage can be blocked (private
+  // windows, previews), so every access is guarded and every value checked.
+  const SETTINGS_KEY = 'reader:settings';
+  const FONTS = {
+    vazirmatn: { family: 'Vazirmatn', css: null }, // already loaded in <head>
+    naskh: { family: 'Noto Naskh Arabic', css: 'Noto+Naskh+Arabic:wght@400;700' },
+    notosans: { family: 'Noto Sans Arabic', css: 'Noto+Sans+Arabic:wght@400;700' },
+    markazi: { family: 'Markazi Text', css: 'Markazi+Text:wght@400;700' },
+    amiri: { family: 'Amiri', css: 'Amiri:wght@400;700' },
+  };
+  const THEMES = ['auto', 'white', 'cream', 'sepia', 'grey', 'mint', 'sky', 'dark', 'black'];
+  const RANGES = { size: [14, 34], leading: [1.4, 2.8], words: [0, 0.5], column: [420, 1200] };
+  const DEFAULTS = { font: 'vazirmatn', size: 20, leading: 2, words: 0, column: 760, theme: 'auto', justify: false, ruler: false };
+
+  function loadSettings() {
+    const s = { ...DEFAULTS };
+    try {
+      const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null') || {};
+      // Earlier versions kept only the size, under its own key.
+      if (!('size' in saved)) saved.size = parseInt(localStorage.getItem('reader:size'), 10);
+      if (saved.font in FONTS) s.font = saved.font;
+      if (THEMES.includes(saved.theme)) s.theme = saved.theme;
+      for (const [k, [lo, hi]] of Object.entries(RANGES)) {
+        const n = Number(saved[k]);
+        if (Number.isFinite(n) && n >= lo && n <= hi) s[k] = n;
+      }
+      s.justify = saved.justify === true;
+      s.ruler = saved.ruler === true;
+    } catch (e) {}
+    return s;
+  }
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) {}
+  }
+  let settings = loadSettings();
+
+  // Only the chosen font is fetched, so most visits load just Vazirmatn.
+  const loadedFonts = new Set(['vazirmatn']);
+  function loadFont(key) {
+    if (loadedFonts.has(key)) return;
+    loadedFonts.add(key);
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=' + FONTS[key].css + '&display=swap';
+    document.head.append(link);
+  }
+
+  const $ = id => document.getElementById(id);
+  const num = (n, digits = 0) => n.toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  function applySettings() {
+    const root = document.documentElement.style;
+    loadFont(settings.font);
+    root.setProperty('--reader-font', '"' + FONTS[settings.font].family + '"');
+    root.setProperty('--reader-size', settings.size + 'px');
+    root.setProperty('--reader-leading', settings.leading);
+    root.setProperty('--reader-words', settings.words + 'em');
+    root.setProperty('--column', settings.column + 'px');
+    out.className = (settings.theme === 'auto' ? '' : 'theme-' + settings.theme) + (settings.justify ? ' justify' : '');
+    for (const pill of document.querySelectorAll('.pill')) {
+      pill.setAttribute('aria-checked', pill.dataset.font === settings.font);
+    }
+    $('sSize').value = settings.size;
+    $('sLeading').value = settings.leading;
+    $('sWords').value = settings.words;
+    $('sColumn').value = settings.column;
+    $('sSize').nextElementSibling.value = num(settings.size);
+    $('sLeading').nextElementSibling.value = num(settings.leading, 1);
+    $('sWords').nextElementSibling.value = num(settings.words, 2);
+    $('sColumn').nextElementSibling.value = num(settings.column);
+    $('sJustify').checked = settings.justify;
+    $('sRuler').checked = settings.ruler;
+    for (const sw of document.querySelectorAll('.swatch')) {
+      sw.setAttribute('aria-checked', sw.dataset.theme === settings.theme);
+    }
+    if (!settings.ruler) ruler.hidden = true;
+  }
+  function update(key, value) {
+    settings[key] = value;
+    applySettings();
+    saveSettings();
+  }
+
+  $('settingsToggle').addEventListener('click', () => {
+    const panel = $('settings');
+    panel.hidden = !panel.hidden;
+    $('settingsToggle').setAttribute('aria-expanded', !panel.hidden);
+    if (!panel.hidden) Object.keys(FONTS).forEach(loadFont);
+  });
+  $('sFont').addEventListener('click', e => {
+    const pill = e.target.closest('.pill');
+    if (pill) update('font', pill.dataset.font);
+  });
+  // Each pill is written in its own font, so they are all fetched, but only
+  // once the panel is opened: a plain visit still loads Vazirmatn alone.
+  for (const pill of document.querySelectorAll('.pill')) {
+    pill.style.fontFamily = '"' + FONTS[pill.dataset.font].family + '", "Vazirmatn", sans-serif';
+  }
+  for (const key of ['size', 'leading', 'words', 'column']) {
+    const id = 's' + key[0].toUpperCase() + key.slice(1);
+    $(id).addEventListener('input', e => update(key, Number(e.target.value)));
+  }
+  $('sJustify').addEventListener('change', e => update('justify', e.target.checked));
+  $('sRuler').addEventListener('change', e => update('ruler', e.target.checked));
+  $('sTheme').addEventListener('click', e => {
+    const sw = e.target.closest('.swatch');
+    if (sw) update('theme', sw.dataset.theme);
+  });
+  $('sReset').addEventListener('click', () => {
+    settings = { ...DEFAULTS };
+    applySettings();
+    saveSettings();
+  });
+
+  // Reading ruler: one line tall, centred on the pointer while it is over the text.
+  const ruler = $('ruler');
+  out.addEventListener('pointermove', e => {
+    if (!settings.ruler) return;
+    const h = settings.size * settings.leading;
+    ruler.style.height = h + 'px';
+    ruler.style.top = (e.clientY - h / 2) + 'px';
+    ruler.hidden = false;
+  });
+  out.addEventListener('pointerleave', () => { ruler.hidden = true; });
+
+  // Focus view: only the text; the button or Escape brings the rest back.
+  function setFocus(on) {
+    document.documentElement.classList.toggle('focus-mode', on);
+    if (on) out.scrollIntoView({ block: 'start' });
+  }
+  $('focusOn').addEventListener('click', () => setFocus(true));
+  $('focusOff').addEventListener('click', () => setFocus(false));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.documentElement.classList.contains('focus-mode')) setFocus(false);
+  });
+
+  applySettings();
+
+  // dir="auto" only looks at the first strong character, so a Persian
+  // sentence that opens with an English word ("Claude گفت که…") would flip to
+  // LTR. Counting letters was not enough either: in "رزروها داخل یک Capacity
+  // Reservation Group قرار می‌گیرند" the English name has more letters than the
+  // Persian sentence around it. Persian prose carries English terms, English
+  // prose almost never carries Persian words, so a line counts as Persian once
+  // a quarter of its words are Persian.
+  const RTL_CHAR = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+  const LTR_CHAR = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/;
+  function directionOf(line) {
+    // Inline code holds paths and identifiers, not prose, and would outvote it.
+    const words = line.replace(/`[^`]*`/g, ' ').split(/\s+/);
+    let rtl = 0, ltr = 0;
+    for (const w of words) {
+      if (RTL_CHAR.test(w)) rtl++;
+      else if (LTR_CHAR.test(w)) ltr++;
+    }
+    if (!rtl && !ltr) return null;
+    return rtl * 3 >= ltr ? 'rtl' : 'ltr';
+  }
+
+  // Text copied from Arabic keyboards or PDFs often carries Arabic yeh/kaf,
+  // which Vazirmatn draws differently and which breaks search. Escapes, not
+  // literals: the Arabic and Persian letters look identical in an editor.
+  function normalise(text) {
+    if (!fixLetters.checked) return text;
+    return text.replace(/[\u064A\u0649]/g, '\u06CC').replace(/\u0643/g, '\u06A9');
+  }
+
+  function render() {
+    const text = normalise(input.value).replace(/\r\n?/g, '\n');
+    const paragraphs = text.split('\n').map(s => s.trim()).filter(Boolean);
+    postTitle(text);
+    out.replaceChildren();
+    if (!paragraphs.length) {
+      const p = document.createElement('p');
+      p.className = 'empty';
+      p.dir = uiDir();
+      p.textContent = t('empty');
+      out.append(p);
+      return;
+    }
+    if (markdown.checked) {
+      if (window.marked && window.DOMPurify) return renderMarkdown(text);
+      say(t('mdMissing'));
+    }
+    // A line with no letters ("}", "|---|") follows the line before it.
+    let previous = uiDir();
+    for (const line of paragraphs) {
+      const p = document.createElement('p');
+      p.dir = previous = directionOf(line) || previous;
+      p.textContent = line;
+      out.append(p);
+    }
+  }
+
+  // Text of a block without its code, which is identifiers rather than prose.
+  function proseOf(el) {
+    const copy = el.cloneNode(true);
+    copy.querySelectorAll('code, pre').forEach(c => c.remove());
+    return copy.textContent;
+  }
+
+  function renderMarkdown(text) {
+    // Pasted text is untrusted: marked passes raw HTML through, DOMPurify strips scripts.
+    out.innerHTML = DOMPurify.sanitize(marked.parse(text, { gfm: true, breaks: true }));
+    let previous = uiDir();
+    // Document order, so a block with no letters follows the one before it.
+    // Lists and tables get a direction too: it decides the bullet side and column order.
+    for (const el of out.querySelectorAll('h1, h2, h3, h4, h5, h6, p, ul, ol, li, blockquote, table, th, td')) {
+      el.dir = previous = directionOf(proseOf(el)) || previous;
+    }
+    out.querySelectorAll('pre').forEach(pre => { pre.dir = 'ltr'; });
+  }
+
+  function say(msg) {
+    statusEl.textContent = msg;
+    clearTimeout(say.t);
+    say.t = setTimeout(() => { statusEl.textContent = ''; }, 3000);
+  }
+
+  const MD_KEY = 'reader:markdown';
+  try { markdown.checked = localStorage.getItem(MD_KEY) === '1'; } catch (e) {}
+
+  input.addEventListener('input', render);
+  fixLetters.addEventListener('change', render);
+  markdown.addEventListener('change', () => {
+    try { localStorage.setItem(MD_KEY, markdown.checked ? '1' : '0'); } catch (e) {}
+    render();
+  });
+
+  document.getElementById('paste').addEventListener('click', async () => {
+    try {
+      input.value = await navigator.clipboard.readText();
+      render();
+      out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      // Firefox and some mobile browsers refuse clipboard reads from script.
+      input.focus();
+      say(t('clipDenied'));
+    }
+  });
+  document.getElementById('clear').addEventListener('click', () => {
+    input.value = '';
+    render();
+    input.focus();
+  });
+
+  applyLang();
+</script>
+</body>
+</html>
