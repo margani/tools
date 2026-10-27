@@ -23,6 +23,8 @@ Plain static HTML: no frameworks, no build step, no npm, no CI workflows.
   matter (Arabic vs Persian ی/ک look identical). In Claude Code sessions, escapes typed
   into a tool call arrive decoded; generate them with a script (`chr(92) + 'u%04X'`) and
   check with `LC_ALL=C grep '[^ -~]'` (2026-10-27).
+- Never use `letter-spacing` on Persian text: it breaks the joins between letters. Offer
+  `word-spacing` instead (persian-reader's reading settings, #8).
 - Links between pages point at `…/index.html` files, so the site also works opened
   straight from disk (`file://`).
 
