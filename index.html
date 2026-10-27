@@ -32,7 +32,7 @@
     }
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; }
+  html, body { margin: 0; height: 100%; }
   body {
     background: var(--bg);
     color: var(--text);
@@ -40,6 +40,101 @@
     line-height: 1.7;
     overflow-wrap: anywhere;
   }
+  button { font: inherit; color: inherit; }
+  button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+
+  /* Workspace: a tab bar and one panel per tab. Horizontal puts the bar on
+     top; vertical puts it at the start side (the right, in RTL). */
+  .app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+  .app.vertical { flex-direction: row; }
+  .tabbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    min-width: 0;
+  }
+  .vertical .tabbar {
+    flex-direction: column;
+    align-items: stretch;
+    width: 220px;
+    flex: 0 0 auto;
+    border-bottom: 0;
+    border-inline-end: 1px solid var(--border);
+  }
+  .tabs { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+  .vertical .tabs { flex-direction: column; overflow-x: hidden; overflow-y: auto; }
+  .tab {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    max-width: 220px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+  }
+  .vertical .tab { max-width: none; }
+  .tab.active { border-color: var(--accent); background: var(--surface); color: var(--accent); font-weight: 600; }
+  .tab-select {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 36px;
+    padding: 4px 12px;
+    border: 0;
+    background: none;
+    text-align: start;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    font-size: .95rem;
+  }
+  .tab-close {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    margin-inline-end: 2px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--muted);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .tab-close:hover { color: var(--text); background: var(--bg); }
+  .layout-toggle {
+    flex: 0 0 auto;
+    min-height: 36px;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: .9rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .layout-toggle .short { display: none; }
+  @media (max-width: 600px) { .layout-toggle .short { display: inline; } }
+  .layout-toggle:hover { border-color: var(--accent); color: var(--text); }
+  .panels { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; }
+  /* Hidden panels stay in the DOM, so each tab keeps its text and scroll. */
+  .panel { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); }
+  .panel[hidden] { display: none; }
+  .home { overflow-y: auto; }
+
+  @media (max-width: 600px) {
+    .tabbar { padding: 6px 8px; }
+    .vertical .tabbar { width: 120px; }
+    .layout-toggle .long { display: none; }
+    .tab-select { padding: 4px 8px; font-size: .85rem; }
+    .tab-close { width: 28px; height: 28px; }
+  }
+
+  /* Home tab: the list of tools. */
   .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
   h1 { font-size: 1.5rem; margin: 0; }
   .lead { color: var(--muted); margin: 4px 0 20px; }
@@ -55,28 +150,171 @@
     text-decoration: none;
   }
   .card:hover { border-color: var(--accent); }
-  .card:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
   .card h2 { font-size: 1.1rem; margin: 0 0 4px; color: var(--accent); }
   .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  .hint { color: var(--muted); font-size: .9rem; margin: 16px 0 0; }
   footer { margin-top: 28px; color: var(--muted); font-size: .85rem; }
   footer a { color: var(--accent); }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>ابزارها</h1>
-  <p class="lead">ابزارهای کوچک یک‌صفحه‌ای برای کارهای روزمره، بدون ثبت‌نام و بدون ردیابی.</p>
+<div class="app" id="app">
+  <nav class="tabbar" aria-label="تب‌ها">
+    <div class="tabs" id="tabs" role="tablist">
+      <div class="tab active" data-id="home">
+        <button type="button" class="tab-select" role="tab" aria-selected="true" aria-controls="panel-home" id="tab-home">ابزارها</button>
+      </div>
+    </div>
+    <button type="button" class="layout-toggle" id="layoutToggle"></button>
+  </nav>
 
-  <ul class="grid">
-    <li>
-      <a class="card" href="persian-reader/index.html">
-        <h2>خواننده‌ی فارسی</h2>
-        <p>متن فارسی را بچسبانید و راست‌به‌چپ و با فونت خوانا بخوانید.</p>
-      </a>
-    </li>
-  </ul>
+  <main class="panels" id="panels">
+    <section class="panel home" id="panel-home" role="tabpanel" aria-labelledby="tab-home">
+      <div class="wrap">
+        <h1>ابزارها</h1>
+        <p class="lead">ابزارهای کوچک یک‌صفحه‌ای برای کارهای روزمره، بدون ثبت‌نام و بدون ردیابی.</p>
 
-  <footer>کد منبع این ابزارها آزاد است: <a href="https://github.com/margani/tools">GitHub</a></footer>
+        <ul class="grid">
+          <li>
+            <a class="card" href="persian-reader/index.html">
+              <h2>خواننده‌ی فارسی</h2>
+              <p>متن فارسی را بچسبانید و راست‌به‌چپ و با فونت خوانا بخوانید.</p>
+            </a>
+          </li>
+        </ul>
+
+        <p class="hint">هر ابزار در یک تب تازه باز می‌شود؛ می‌توانید از یک ابزار چند تب داشته باشید.</p>
+        <footer>کد منبع این ابزارها آزاد است: <a href="https://github.com/margani/tools">GitHub</a></footer>
+      </div>
+    </section>
+  </main>
 </div>
+
+<script>
+  const app = document.getElementById('app');
+  const tabsEl = document.getElementById('tabs');
+  const panelsEl = document.getElementById('panels');
+  const layoutToggle = document.getElementById('layoutToggle');
+
+  // Layout is the one thing remembered. Open tabs are not restored: their
+  // text lives only inside each tab, so a restored tab would come back empty.
+  const LAYOUT_KEY = 'tools:tab-layout';
+  let layout = 'horizontal';
+  try { if (localStorage.getItem(LAYOUT_KEY) === 'vertical') layout = 'vertical'; } catch (e) {}
+  function applyLayout() {
+    app.classList.toggle('vertical', layout === 'vertical');
+    const next = layout === 'vertical' ? 'افقی' : 'عمودی';
+    // The full label takes half the bar at phone width; there only the word shows.
+    layoutToggle.innerHTML = '<span class="long">چیدمان ' + next + ' تب‌ها</span><span class="short">' + next + '</span>';
+    layoutToggle.title = 'چیدمان ' + next + ' تب‌ها';
+    layoutToggle.setAttribute('aria-label', layoutToggle.title);
+  }
+  applyLayout();
+  layoutToggle.addEventListener('click', () => {
+    layout = layout === 'vertical' ? 'horizontal' : 'vertical';
+    applyLayout();
+    try { localStorage.setItem(LAYOUT_KEY, layout); } catch (e) {}
+  });
+
+  const tabs = new Map(); // id -> { tab, panel, name }
+  tabs.set('home', { tab: tabsEl.querySelector('[data-id="home"]'), panel: document.getElementById('panel-home') });
+  let seq = 0;
+  const opened = {}; // tool href -> how many tabs of it were opened, for "خواننده‌ی فارسی ۲"
+
+  function activate(id) {
+    for (const [key, t] of tabs) {
+      const on = key === id;
+      t.tab.classList.toggle('active', on);
+      t.tab.querySelector('.tab-select').setAttribute('aria-selected', on);
+      t.panel.hidden = !on;
+    }
+    tabs.get(id).tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  function setLabel(t, label) {
+    const btn = t.tab.querySelector('.tab-select');
+    btn.textContent = label;
+    btn.title = label;
+  }
+
+  function openTool(href, name) {
+    const id = 't' + (++seq);
+    opened[href] = (opened[href] || 0) + 1;
+    const label = opened[href] > 1 ? name + ' ' + opened[href].toLocaleString('fa-IR') : name;
+
+    const panel = document.createElement('iframe');
+    panel.className = 'panel';
+    panel.id = 'panel-' + id;
+    panel.src = href;
+    panel.title = label;
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', 'tab-' + id);
+
+    const tab = document.createElement('div');
+    tab.className = 'tab';
+    tab.dataset.id = id;
+    const select = document.createElement('button');
+    select.type = 'button';
+    select.className = 'tab-select';
+    select.id = 'tab-' + id;
+    select.setAttribute('role', 'tab');
+    select.setAttribute('aria-controls', panel.id);
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'tab-close';
+    close.textContent = '×';
+    close.setAttribute('aria-label', 'بستن تب ' + label);
+    tab.append(select, close);
+
+    const t = { tab, panel, name: label };
+    setLabel(t, label);
+    tabs.set(id, t);
+    tabsEl.append(tab);
+    panelsEl.append(panel);
+    activate(id);
+  }
+
+  function closeTab(id) {
+    const ids = [...tabs.keys()];
+    const wasActive = tabs.get(id).tab.classList.contains('active');
+    const t = tabs.get(id);
+    t.tab.remove();
+    t.panel.remove();
+    tabs.delete(id);
+    if (wasActive) activate(ids[ids.indexOf(id) - 1] || 'home');
+  }
+
+  // One handler for every tab, the home tab included: per-tab listeners left
+  // the home tab without one, so the tool list could not be reached again.
+  tabsEl.addEventListener('click', e => {
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+    if (e.target.closest('.tab-close')) closeTab(tab.dataset.id);
+    else if (e.target.closest('.tab-select')) activate(tab.dataset.id);
+  });
+
+  // A plain click opens the tool in a tab here; Ctrl, Shift, Cmd or a middle
+  // click still opens a real browser tab, as with any link.
+  for (const card of document.querySelectorAll('.card')) {
+    card.addEventListener('click', e => {
+      if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      openTool(card.getAttribute('href'), card.querySelector('h2').textContent.trim());
+    });
+  }
+
+  // A tool may name its tab, e.g. after the first words of its text:
+  // parent.postMessage({ type: 'tools:title', title }). Only our own frames
+  // count; an empty title restores the tool's name.
+  window.addEventListener('message', e => {
+    if (!e.data || e.data.type !== 'tools:title') return;
+    for (const t of tabs.values()) {
+      if (t.panel.contentWindow && t.panel.contentWindow === e.source) {
+        const title = String(e.data.title || '').trim().slice(0, 60);
+        setLabel(t, title || t.name);
+      }
+    }
+  });
+</script>
 </body>
 </html>

@@ -54,6 +54,8 @@
   h1 { font-size: 1.5rem; margin: 0; }
   .back { color: var(--muted); text-decoration: none; font-size: .95rem; }
   .back:hover { color: var(--accent); }
+  /* Inside a tab of the root page the link would open the tab bar inside the tab. */
+  .embedded .back { display: none; }
   .lead { color: var(--muted); margin: 4px 0 16px; }
   textarea {
     display: block;
@@ -181,6 +183,22 @@
   const fixLetters = document.getElementById('fixLetters');
   const markdown = document.getElementById('markdown');
 
+  const embedded = window.parent !== window;
+  if (embedded) document.documentElement.classList.add('embedded');
+
+  // Names this tab in the root page after the first words of the text, so two
+  // reader tabs can be told apart. Same-origin only, so a site that frames this
+  // page never sees the text; file:// has no origin to name, hence '*'.
+  let lastTitle = null;
+  function postTitle(text) {
+    if (!embedded) return;
+    const first = text.split('\n').map(s => s.replace(/[#*`>|]+/g, ' ').trim()).find(Boolean) || '';
+    const title = first.split(/\s+/).slice(0, 5).join(' ').slice(0, 40);
+    if (title === lastTitle) return;
+    lastTitle = title;
+    window.parent.postMessage({ type: 'tools:title', title }, location.protocol === 'file:' ? '*' : location.origin);
+  }
+
   // Font size is the one setting worth keeping between visits. Storage can be
   // blocked (private windows, previews), so every access is guarded.
   const SIZE_KEY = 'persian-reader:size';
@@ -231,6 +249,7 @@
   function render() {
     const text = normalise(input.value).replace(/\r\n?/g, '\n');
     const paragraphs = text.split('\n').map(s => s.trim()).filter(Boolean);
+    postTitle(text);
     out.replaceChildren();
     if (!paragraphs.length) {
       const p = document.createElement('p');

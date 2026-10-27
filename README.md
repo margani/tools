@@ -5,6 +5,10 @@ HTML file. No framework, no build step, nothing sent to a server.
 
 Live: https://tools.whosane.dev
 
+The home page is a small tab workspace: each tool opens in its own tab, as many
+times as you like (two Persian readers with different texts, say), with the tabs
+along the top or down the side.
+
 | Tool | What it does | Live |
 |---|---|---|
 | [Persian reader](persian-reader/) | Paste Persian text (even mixed with English) and read it right-to-left in a clear font, optionally rendered as Markdown. | https://tools.whosane.dev/persian-reader/ |
