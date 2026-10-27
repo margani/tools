@@ -131,16 +131,14 @@
   }
   .settings[hidden] { display: none; }
   .settings > label, .settings > .row-label { color: var(--muted); font-size: .95rem; }
-  .settings select {
-    font: inherit;
-    font-size: .95rem;
-    padding: 6px 10px;
-    color: var(--text);
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    min-height: 36px;
+    padding: 4px 14px;
+    font-size: 1rem;
     background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    max-width: 100%;
   }
+  .pill[aria-checked="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
   .range { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .range input { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
   .range output { flex: 0 0 3.2em; text-align: center; color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
@@ -267,14 +265,14 @@
   <div class="status" id="status" role="status"></div>
 
   <section class="settings" id="settings" hidden aria-label="تنظیمات خواندن">
-    <label for="sFont">فونت</label>
-    <select id="sFont">
-      <option value="vazirmatn">وزیرمتن</option>
-      <option value="naskh">نوتو نسخ</option>
-      <option value="notosans">نوتو سنس</option>
-      <option value="markazi">مرکزی</option>
-      <option value="amiri">امیری</option>
-    </select>
+    <span class="row-label" id="fontLabel">فونت</span>
+    <div class="pills" id="sFont" role="radiogroup" aria-labelledby="fontLabel">
+      <button type="button" class="pill" role="radio" data-font="vazirmatn">وزیرمتن</button>
+      <button type="button" class="pill" role="radio" data-font="naskh">نوتو نسخ</button>
+      <button type="button" class="pill" role="radio" data-font="notosans">نوتو سنس</button>
+      <button type="button" class="pill" role="radio" data-font="markazi">مرکزی</button>
+      <button type="button" class="pill" role="radio" data-font="amiri">امیری</button>
+    </div>
 
     <label for="sSize">اندازه‌ی متن</label>
     <div class="range"><input type="range" id="sSize" min="14" max="34" step="1"><output for="sSize"></output></div>
@@ -397,7 +395,9 @@
     root.setProperty('--reader-words', settings.words + 'em');
     root.setProperty('--column', settings.column + 'px');
     out.className = (settings.theme === 'auto' ? '' : 'theme-' + settings.theme) + (settings.justify ? ' justify' : '');
-    $('sFont').value = settings.font;
+    for (const pill of document.querySelectorAll('.pill')) {
+      pill.setAttribute('aria-checked', pill.dataset.font === settings.font);
+    }
     $('sSize').value = settings.size;
     $('sLeading').value = settings.leading;
     $('sWords').value = settings.words;
@@ -423,8 +423,17 @@
     const panel = $('settings');
     panel.hidden = !panel.hidden;
     $('settingsToggle').setAttribute('aria-expanded', !panel.hidden);
+    if (!panel.hidden) Object.keys(FONTS).forEach(loadFont);
   });
-  $('sFont').addEventListener('change', e => update('font', e.target.value));
+  $('sFont').addEventListener('click', e => {
+    const pill = e.target.closest('.pill');
+    if (pill) update('font', pill.dataset.font);
+  });
+  // Each pill is written in its own font, so they are all fetched, but only
+  // once the panel is opened: a plain visit still loads Vazirmatn alone.
+  for (const pill of document.querySelectorAll('.pill')) {
+    pill.style.fontFamily = '"' + FONTS[pill.dataset.font].family + '", "Vazirmatn", sans-serif';
+  }
   for (const key of ['size', 'leading', 'words', 'column']) {
     const id = 's' + key[0].toUpperCase() + key.slice(1);
     $(id).addEventListener('input', e => update(key, Number(e.target.value)));
