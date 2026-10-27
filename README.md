@@ -7,7 +7,7 @@ Live: https://tools.whosane.dev
 
 | Tool | What it does | Live |
 |---|---|---|
-| [Persian reader](persian-reader/) | Paste Persian text (even mixed with English) and read it right-to-left in a clear font. | https://tools.whosane.dev/persian-reader/ |
+| [Persian reader](persian-reader/) | Paste Persian text (even mixed with English) and read it right-to-left in a clear font, optionally rendered as Markdown. | https://tools.whosane.dev/persian-reader/ |
 
 ## Run it yourself
 

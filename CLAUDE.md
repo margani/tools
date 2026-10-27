@@ -15,10 +15,14 @@ Plain static HTML: no frameworks, no build step, no npm, no CI workflows.
 - Light and dark theme through CSS custom properties on `:root`, switched by
   `prefers-color-scheme`. No hard-coded colours inside components; use the tokens.
   Reuse the token names from the existing pages (`--bg`, `--surface`, `--text`,
-  `--muted`, `--border`, `--accent`, `--focus`) and the Vazirmatn font.
+  `--muted`, `--border`, `--accent`, `--focus`, `--code-bg`) and the Vazirmatn font.
 - Must work at phone width (390px) with no horizontal scroll.
 - `localStorage` only for small conveniences (e.g. a font size), every access wrapped
   in try/catch. No tracking, no analytics, nothing sent to a server.
+- Write non-ASCII characters in JS regexes and strings as `\uXXXX` escapes when they
+  matter (Arabic vs Persian ی/ک look identical). In Claude Code sessions, escapes typed
+  into a tool call arrive decoded; generate them with a script (`chr(92) + 'u%04X'`) and
+  check with `LC_ALL=C grep '[^ -~]'` (2026-10-27).
 - Links between pages point at `…/index.html` files, so the site also works opened
   straight from disk (`file://`).
 

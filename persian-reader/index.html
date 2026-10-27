@@ -8,6 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- Markdown option only. Pinned with integrity hashes; nothing is sent anywhere. -->
+<script defer src="https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.umd.js" integrity="sha384-rATToyt6602Jnq8c7w8HZwmyOUgPL7mzxX01FBWoV48ns/EgkakGozpES+PnaYOI" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.min.js" integrity="sha384-P0JNneQf81HOl9VwNXK76cQ9VMD6Nfsnepxb0cCOg8+UzEdzgPHAPV4wVQrvYQSx" crossorigin="anonymous"></script>
 <style>
   :root {
     color-scheme: light dark;
@@ -19,6 +22,7 @@
     --accent: #2f6f5e;
     --accent-text: #ffffff;
     --focus: #2f6f5e55;
+    --code-bg: #f1efe9;
     --radius: 14px;
     --reader-size: 20px;
     --reader-leading: 2;
@@ -33,6 +37,7 @@
       --accent: #6cc4a8;
       --accent-text: #0f1f1a;
       --focus: #6cc4a855;
+      --code-bg: #26262a;
     }
   }
   * { box-sizing: border-box; }
@@ -94,9 +99,47 @@
      letter and overrides the dir set by directionOf(), which put the full stop
      of "Claude گفت که…" on the wrong side. */
   article p { margin: 0 0 .9em; }
-  article p:last-child { margin-bottom: 0; }
-  article p[dir="rtl"] { text-align: right; }
-  article p[dir="ltr"] { text-align: left; }
+  article > :first-child { margin-top: 0; }
+  article > :last-child { margin-bottom: 0; }
+  /* Markdown blocks. Every block carries its own dir, so text-align: start
+     follows it. */
+  article h1, article h2, article h3, article h4 { line-height: 1.5; margin: 1.2em 0 .5em; }
+  article h1 { font-size: 1.5em; }
+  article h2 { font-size: 1.3em; }
+  article h3, article h4 { font-size: 1.1em; }
+  article ul, article ol { margin: 0 0 .9em; padding-inline-start: 1.4em; }
+  article li { margin: .2em 0; }
+  article blockquote { margin: 0 0 .9em; padding-inline-start: 1em; border-inline-start: 3px solid var(--border); color: var(--muted); }
+  article hr { border: 0; border-top: 1px solid var(--border); margin: 1.2em 0; }
+  article a { color: var(--accent); }
+  /* isolate: a path like user/hossein/us43519_odcr must not reorder the
+     Persian words around it. */
+  article code {
+    direction: ltr;
+    unicode-bidi: isolate;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .85em;
+    background: var(--code-bg);
+    padding: .1em .35em;
+    border-radius: 6px;
+  }
+  article pre {
+    direction: ltr;
+    text-align: left;
+    overflow-x: auto;
+    background: var(--code-bg);
+    padding: 12px 14px;
+    border-radius: 10px;
+    line-height: 1.6;
+    margin: 0 0 .9em;
+  }
+  article pre code { background: none; padding: 0; font-size: .8em; }
+  /* Wide tables scroll inside the card instead of widening the page. */
+  article table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 0 0 .9em; font-size: .9em; }
+  /* overflow-wrap: anywhere (set on body) let cells shrink until words broke
+     letter by letter at 390px; whole words plus the table's own scroll read better. */
+  article th, article td { border: 1px solid var(--border); padding: 6px 10px; text-align: start; vertical-align: top; overflow-wrap: normal; min-width: 6em; }
+  article th { background: var(--code-bg); }
   article .empty { color: var(--muted); font-size: 1rem; }
   footer { margin-top: 28px; color: var(--muted); font-size: .85rem; }
   @media (max-width: 480px) {
@@ -122,6 +165,7 @@
     <button type="button" id="smaller" aria-label="ریزتر کردن متن">ریزتر</button>
     <button type="button" id="bigger" aria-label="درشت‌تر کردن متن">درشت‌تر</button>
     <label class="check"><input type="checkbox" id="fixLetters" checked> یکسان‌سازی ی و ک عربی</label>
+    <label class="check"><input type="checkbox" id="markdown"> نمایش مارک‌داون</label>
   </div>
   <div class="status" id="status" role="status"></div>
 
@@ -135,6 +179,7 @@
   const out = document.getElementById('out');
   const statusEl = document.getElementById('status');
   const fixLetters = document.getElementById('fixLetters');
+  const markdown = document.getElementById('markdown');
 
   // Font size is the one setting worth keeping between visits. Storage can be
   // blocked (private windows, previews), so every access is guarded.
@@ -156,20 +201,31 @@
 
   // dir="auto" only looks at the first strong character, so a Persian
   // sentence that opens with an English word ("Claude گفت که…") would flip to
-  // LTR. Counting letters of each script gives the direction a reader expects.
-  const RTL_LETTER = /[֐-ࣿיִ-﷿ﹰ-﻿]/g;
-  const LTR_LETTER = /[A-Za-zÀ-ɏͰ-ϿЀ-ӿ]/g;
+  // LTR. Counting letters was not enough either: in "رزروها داخل یک Capacity
+  // Reservation Group قرار می‌گیرند" the English name has more letters than the
+  // Persian sentence around it. Persian prose carries English terms, English
+  // prose almost never carries Persian words, so a line counts as Persian once
+  // a quarter of its words are Persian.
+  const RTL_CHAR = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+  const LTR_CHAR = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/;
   function directionOf(line) {
-    const rtl = (line.match(RTL_LETTER) || []).length;
-    const ltr = (line.match(LTR_LETTER) || []).length;
-    return rtl >= ltr && rtl > 0 ? 'rtl' : (ltr > 0 ? 'ltr' : 'rtl');
+    // Inline code holds paths and identifiers, not prose, and would outvote it.
+    const words = line.replace(/`[^`]*`/g, ' ').split(/\s+/);
+    let rtl = 0, ltr = 0;
+    for (const w of words) {
+      if (RTL_CHAR.test(w)) rtl++;
+      else if (LTR_CHAR.test(w)) ltr++;
+    }
+    if (!rtl && !ltr) return null;
+    return rtl * 3 >= ltr ? 'rtl' : 'ltr';
   }
 
   // Text copied from Arabic keyboards or PDFs often carries Arabic yeh/kaf,
-  // which Vazirmatn draws differently and which breaks search.
+  // which Vazirmatn draws differently and which breaks search. Escapes, not
+  // literals: the Arabic and Persian letters look identical in an editor.
   function normalise(text) {
     if (!fixLetters.checked) return text;
-    return text.replace(/ي/g, 'ی').replace(/ى/g, 'ی').replace(/ك/g, 'ک');
+    return text.replace(/[\u064A\u0649]/g, '\u06CC').replace(/\u0643/g, '\u06A9');
   }
 
   function render() {
@@ -184,12 +240,37 @@
       out.append(p);
       return;
     }
+    if (markdown.checked) {
+      if (window.marked && window.DOMPurify) return renderMarkdown(text);
+      say('نمایش مارک‌داون در دسترس نیست، چون اسکریپت آن بارگذاری نشد؛ متن ساده نمایش داده می‌شود.');
+    }
+    // A line with no letters ("}", "|---|") follows the line before it.
+    let previous = 'rtl';
     for (const line of paragraphs) {
       const p = document.createElement('p');
-      p.dir = directionOf(line);
+      p.dir = previous = directionOf(line) || previous;
       p.textContent = line;
       out.append(p);
     }
+  }
+
+  // Text of a block without its code, which is identifiers rather than prose.
+  function proseOf(el) {
+    const copy = el.cloneNode(true);
+    copy.querySelectorAll('code, pre').forEach(c => c.remove());
+    return copy.textContent;
+  }
+
+  function renderMarkdown(text) {
+    // Pasted text is untrusted: marked passes raw HTML through, DOMPurify strips scripts.
+    out.innerHTML = DOMPurify.sanitize(marked.parse(text, { gfm: true, breaks: true }));
+    let previous = 'rtl';
+    // Document order, so a block with no letters follows the one before it.
+    // Lists and tables get a direction too: it decides the bullet side and column order.
+    for (const el of out.querySelectorAll('h1, h2, h3, h4, h5, h6, p, ul, ol, li, blockquote, table, th, td')) {
+      el.dir = previous = directionOf(proseOf(el)) || previous;
+    }
+    out.querySelectorAll('pre').forEach(pre => { pre.dir = 'ltr'; });
   }
 
   function say(msg) {
@@ -198,8 +279,15 @@
     say.t = setTimeout(() => { statusEl.textContent = ''; }, 3000);
   }
 
+  const MD_KEY = 'persian-reader:markdown';
+  try { markdown.checked = localStorage.getItem(MD_KEY) === '1'; } catch (e) {}
+
   input.addEventListener('input', render);
   fixLetters.addEventListener('change', render);
+  markdown.addEventListener('change', () => {
+    try { localStorage.setItem(MD_KEY, markdown.checked ? '1' : '0'); } catch (e) {}
+    render();
+  });
 
   document.getElementById('paste').addEventListener('click', async () => {
     try {
