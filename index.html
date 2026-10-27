@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ابزارها</title>
+<meta name="description" content="ابزارهای کوچک یک‌صفحه‌ای برای کارهای روزمره.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --muted: #6b6b70;
+    --border: #e2e0da;
+    --accent: #2f6f5e;
+    --focus: #2f6f5e55;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416;
+      --surface: #1e1e21;
+      --text: #ececee;
+      --muted: #9a9aa2;
+      --border: #333338;
+      --accent: #6cc4a8;
+      --focus: #6cc4a855;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Vazirmatn", system-ui, sans-serif;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  .lead { color: var(--muted); margin: 4px 0 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; list-style: none; margin: 0; padding: 0; }
+  .card {
+    display: block;
+    height: 100%;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: inherit;
+    text-decoration: none;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+  .card h2 { font-size: 1.1rem; margin: 0 0 4px; color: var(--accent); }
+  .card p { margin: 0; color: var(--muted); font-size: .95rem; }
+  footer { margin-top: 28px; color: var(--muted); font-size: .85rem; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ابزارها</h1>
+  <p class="lead">ابزارهای کوچک یک‌صفحه‌ای برای کارهای روزمره، بدون ثبت‌نام و بدون ردیابی.</p>
+
+  <ul class="grid">
+    <li>
+      <a class="card" href="persian-reader/index.html">
+        <h2>خواننده‌ی فارسی</h2>
+        <p>متن فارسی را بچسبانید و راست‌به‌چپ و با فونت خوانا بخوانید.</p>
+      </a>
+    </li>
+  </ul>
+
+  <footer>کد منبع این ابزارها آزاد است: <a href="https://github.com/margani/tools">GitHub</a></footer>
+</div>
+</body>
+</html>

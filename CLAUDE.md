@@ -1,0 +1,44 @@
+# tools
+
+Single-page browser utilities, public and MIT-licensed (github.com/margani/tools).
+Plain static HTML: no frameworks, no build step, no npm, no CI workflows.
+
+## Rules
+
+- One tool = one folder with a single self-contained `index.html`: inline CSS and JS.
+  The only external resources allowed are Google Fonts and CDN scripts pinned to an
+  exact version.
+- UI text is Persian and RTL (`<html lang="fa" dir="rtl">`).
+- Every Persian line must start with a Persian letter, not an emoji, number or Latin
+  word, so the bidi algorithm picks RTL. Put emoji at the end of the line.
+- Code, comments and file names are in English.
+- Light and dark theme through CSS custom properties on `:root`, switched by
+  `prefers-color-scheme`. No hard-coded colours inside components; use the tokens.
+  Reuse the token names from the existing pages (`--bg`, `--surface`, `--text`,
+  `--muted`, `--border`, `--accent`, `--focus`) and the Vazirmatn font.
+- Must work at phone width (390px) with no horizontal scroll.
+- `localStorage` only for small conveniences (e.g. a font size), every access wrapped
+  in try/catch. No tracking, no analytics, nothing sent to a server.
+- Links between pages point at `…/index.html` files, so the site also works opened
+  straight from disk (`file://`).
+
+## Adding a tool
+
+1. Create `<tool-name>/index.html`, with a link back to `../index.html`.
+2. Add a card for it to the root `index.html`.
+3. Add a row for it to the table in `README.md`, with its live URL.
+
+## Hosting and running
+
+- Production: https://tools.whosane.dev, Worker `tools` on the Cloudflare **Hossein**
+  account (`cbaf7c8b254ee4af435b9d6e32d2c6f1`), custom domain on zone `whosane.dev`
+  (same account). Static assets only, no Worker script. No sandbox.
+- The repo root is the site. `.assetsignore` (Cloudflare) and `.dockerignore` (Docker)
+  keep docs and config out of it; keep the two files identical, and add any new
+  non-site file to both.
+- Deploys: a Workers Builds trigger on branch `main`, no build command, deploy command
+  `bash scripts/deploy.sh`. It writes `version.json` with the commit and runs
+  `wrangler deploy`. Verify a deploy with `https://tools.whosane.dev/version.json`,
+  which must name the merged commit. Never deploy by hand.
+- Locally: open `index.html`, or `python3 -m http.server 8080`, or
+  `docker build -t tools . && docker run --rm -p 8080:80 tools`.

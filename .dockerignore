@@ -1,0 +1,12 @@
+# Keep .assetsignore and .dockerignore identical: both decide which repo files are the site.
+.git
+.github
+.gitignore
+.assetsignore
+.dockerignore
+.wrangler
+*.md
+LICENSE
+Dockerfile
+wrangler.jsonc
+scripts
