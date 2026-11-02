@@ -37,6 +37,14 @@ Plain static HTML: no frameworks, no build step, no npm, no CI workflows.
 - Links between pages point at `…/index.html` files, so the site also works opened
   straight from disk (`file://`).
 
+## Tests
+
+- `tests/tools.test.cjs` drives the pages in headless Chromium with Playwright, which
+  is not a site dependency: install it outside the repo and run
+  `NODE_PATH=<dir>/node_modules node tests/tools.test.cjs` (README "Tests"). It serves
+  the repo itself, blocks all other network, and mocks Azure Blob Storage.
+- A new tool adds its checks there, plus the shared fa/en × 1280/390 loop.
+
 ## Tabs (root page)
 
 The root `index.html` is a tab workspace: a plain click on a tool card opens the tool
