@@ -1,3 +1,4 @@
 .wrangler/
 # Written by scripts/deploy.sh during a Cloudflare build only.
 version.json
+.impeccable/config.local.json
