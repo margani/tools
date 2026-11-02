@@ -395,7 +395,10 @@
   $('langToggle').addEventListener('click', () => setLang(lang === 'fa' ? 'en' : 'fa', true));
   window.addEventListener('storage', e => { if (e.key === LANG_KEY) setLang(e.newValue, false); });
   window.addEventListener('message', e => {
-    if (e.source === window.parent && e.data && e.data.type === 'tools:lang') setLang(e.data.lang, false);
+    // Origin as well as source: a foreign site framing the tool must not
+    // drive it (#24). file:// pages have the opaque origin "null".
+    if (e.source === window.parent && (e.origin === location.origin || location.protocol === 'file:') &&
+        e.data && e.data.type === 'tools:lang') setLang(e.data.lang, false);
   });
   if (window.parent !== window) document.documentElement.classList.add('embedded');
 

@@ -313,6 +313,52 @@ async function mockAzure(page, opts = {}) {
     await page.__ctx.close();
   });
 
+  // ---------- hardening (#24) ----------
+  test('azure-logs keeps the token out of global scope and drops loads cut off by Disconnect', async () => {
+    let release;
+    const gate = new Promise(r => { release = r; });
+    const page = await open('/azure-logs/index.html?lang=en', { before: async p => {
+      await mockAzure(p);
+      // Blob bodies wait until the test lets them through, so Disconnect lands mid-load.
+      await p.route(u => u.pathname.endsWith('PT1H.json'), async r => { await gate; r.fallback(); });
+    } });
+    eq(await page.evaluate(() => typeof conn), 'undefined', 'connection object reachable as a global');
+    await page.fill('#account', ACCOUNT);
+    await page.fill('#sas', SAS);
+    await page.click('#connect');
+    await page.waitForSelector('#browseCard:not([hidden])');
+    await page.click('#list');
+    await page.waitForFunction(() => document.querySelectorAll('#blobs li').length === 2);
+    await page.click('#loadAll');
+    await page.click('#disconnect');
+    release();
+    await page.waitForTimeout(500);
+    eq(await page.isHidden('#logsCard'), true, 'records from before Disconnect shown');
+    await page.__ctx.close();
+  });
+
+  test('tools ignore tools:lang from a parent on another origin', async () => {
+    const other = base.replace('127.0.0.1', 'localhost');
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto(other + '/index.html');
+    for (const tool of ['pwd-gen', 'azure-logs', 'reader']) {
+      const res = await page.evaluate(async src => {
+        const f = document.createElement('iframe');
+        f.src = src;
+        document.body.append(f);
+        await new Promise(r => f.onload = r);
+        f.contentWindow.postMessage({ type: 'tools:lang', lang: 'fa' }, '*');
+        await new Promise(r => setTimeout(r, 300));
+        return f.contentWindow.location.href; // throws if cross-origin, so read lang another way
+      }, base + '/' + tool + '/index.html?lang=en').catch(e => 'cross-origin');
+      eq(res, 'cross-origin', 'frame should be cross-origin');
+      const frame = page.frames().find(f => f.url().startsWith(base + '/' + tool + '/'));
+      eq(await frame.evaluate(() => document.documentElement.lang), 'en', tool + ' switched language for a foreign parent');
+    }
+    await context.close();
+  });
+
   // ---------- shared: languages, layout, tabs ----------
   for (const tool of ['pwd-gen', 'azure-logs']) {
     for (const width of [1280, 390]) {

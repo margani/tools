@@ -408,6 +408,9 @@
   // count; an empty title restores the tool's name.
   window.addEventListener('message', e => {
     if (!e.data || e.data.type !== 'tools:title') return;
+    // A tab whose frame navigated to a foreign page (a link in the reader)
+    // must not rename the tab (#24); file:// pages have no origin to compare.
+    if (e.origin !== location.origin && location.protocol !== 'file:') return;
     for (const entry of tabs.values()) {
       if (entry.panel.contentWindow && entry.panel.contentWindow === e.source) {
         entry.title = String(e.data.title || '').trim().slice(0, 60);

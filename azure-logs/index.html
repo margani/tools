@@ -313,6 +313,9 @@
 </div>
 
 <script>
+// Everything, the SAS token included, lives inside this function: a top-level
+// `let` would be readable by any same-origin script (#24).
+(() => {
   'use strict';
 
   // ---- Pure helpers (also used by tests/tools.test.cjs) ----
@@ -539,9 +542,12 @@
   const num = n => Number(n).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
   const $ = id => document.getElementById(id);
 
-  // ---- Connection. The SAS token lives only in this closure. ----
+  // ---- Connection. The SAS token lives only in this function's scope. ----
 
   let conn = null; // { account, sas }
+  // Bumped on every reset: results of a load started before Disconnect or a
+  // new connection are dropped instead of joining the new view (#24).
+  let gen = 0;
   const blobs = new Map(); // name -> { name, size, modified, resource, state, count, el }
   let nextMarker = '';
   let records = []; // { r, key, time, text }
@@ -552,23 +558,24 @@
     constructor(kind, status, code, detail) { super(kind); this.kind = kind; this.status = status; this.code = code; this.detail = detail; }
   }
 
-  function blobUrl(path, params) {
-    const u = new URL('https://' + conn.account + '.blob.core.windows.net/');
+  function blobUrl(c, path, params) {
+    const u = new URL('https://' + c.account + '.blob.core.windows.net/');
     u.pathname = '/' + path;
     const q = new URLSearchParams(params || {}).toString();
-    u.search = (q ? q + '&' : '') + conn.sas;
+    u.search = (q ? q + '&' : '') + c.sas;
     return u.toString();
   }
 
   // A blob path keeps its slashes; every segment is percent-encoded on its own.
   const encodePath = p => p.split('/').map(encodeURIComponent).join('/');
 
-  async function azGet(path, params) {
+  async function azGet(path, params, c = conn) {
+    if (!c) throw new AzError('network');
     let res;
     try {
       // No custom headers, so the browser sends a simple CORS request; the
       // URL (with the token) is never shown or logged.
-      res = await fetch(blobUrl(path, params), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      res = await fetch(blobUrl(c, path, params), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
     } catch (e) {
       throw new AzError('network');
     }
@@ -683,6 +690,7 @@
   }
 
   function resetData() {
+    gen++;
     blobs.clear();
     records = [];
     resources.clear();
@@ -722,8 +730,10 @@
     if (append && nextMarker) params.marker = nextMarker;
     setMsg(msg, t('listing'));
     $('list').disabled = $('more').disabled = true;
+    const g = gen;
     try {
       const out = parseBlobList(await azGet(encodePath(container), params));
+      if (g !== gen) return;
       nextMarker = out.next;
       for (const b of out.blobs) {
         if (blobs.has(b.name)) continue;
@@ -792,24 +802,27 @@
   async function loadBlobs(list) {
     const todo = list.filter(b => b.state === 'listed' || b.state === 'error');
     if (!todo.length || !conn) return;
+    const c = conn, g = gen;
     let done = 0;
     const msg = $('browseMsg');
     setMsg(msg, t('loading')(num(0), num(todo.length)));
     $('loadAll').disabled = true;
     const queue = [...todo];
     async function worker() {
-      while (queue.length) {
+      while (queue.length && g === gen) {
         const entry = queue.shift();
         entry.state = 'loading';
         paintBlob(entry);
         try {
-          const body = await azGet(encodePath(entry.container) + '/' + encodePath(entry.name));
+          const body = await azGet(encodePath(entry.container) + '/' + encodePath(entry.name), null, c);
+          if (g !== gen) return;
           const out = parseRecords(body);
           addRecords(out.records, entry);
           entry.count = out.records.length;
           entry.bad = out.bad;
           entry.state = 'loaded';
         } catch (err) {
+          if (g !== gen) return;
           entry.state = 'error';
           entry.error = errorText(err);
         }
@@ -818,6 +831,7 @@
       }
     }
     await Promise.all(Array.from({ length: Math.min(4, todo.length) }, worker));
+    if (g !== gen) return;
     const failed = todo.find(b => b.state === 'error');
     setMsg(msg, failed ? failed.error : '', !!failed);
     $('loadAll').disabled = false;
@@ -998,7 +1012,10 @@
   $('langToggle').addEventListener('click', () => setLang(lang === 'fa' ? 'en' : 'fa', true));
   window.addEventListener('storage', e => { if (e.key === LANG_KEY) setLang(e.newValue, false); });
   window.addEventListener('message', e => {
-    if (e.source === window.parent && e.data && e.data.type === 'tools:lang') setLang(e.data.lang, false);
+    // Origin as well as source: a foreign site framing the tool must not
+    // drive it (#24). file:// pages have the opaque origin "null".
+    if (e.source === window.parent && (e.origin === location.origin || location.protocol === 'file:') &&
+        e.data && e.data.type === 'tools:lang') setLang(e.data.lang, false);
   });
 
   // ---- Wiring ----
@@ -1021,6 +1038,7 @@
 
   fillHelp();
   applyLang();
+})();
 </script>
 </body>
 </html>

@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Pasted Markdown is untrusted: scripts only from the pinned CDN files, no
+     forms, no network requests of the page's own (#24). Images in Markdown may load. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/marked@18.1.1/ https://cdn.jsdelivr.net/npm/dompurify@3.4.17/; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src https: data:; base-uri 'none'; form-action 'none'">
 <title>خواننده</title>
 <meta name="description" content="Paste Persian or English text and read it with the right direction in a clear font, plain or Markdown.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -468,7 +471,10 @@
   // Another page of the site changed the language (storage), or the tab bar did (message).
   window.addEventListener('storage', e => { if (e.key === LANG_KEY) setLang(e.newValue, false); });
   window.addEventListener('message', e => {
-    if (e.source === window.parent && e.data && e.data.type === 'tools:lang') setLang(e.data.lang, false);
+    // Origin as well as source: a foreign site framing the tool must not
+    // drive it (#24). file:// pages have the opaque origin "null".
+    if (e.source === window.parent && (e.origin === location.origin || location.protocol === 'file:') &&
+        e.data && e.data.type === 'tools:lang') setLang(e.data.lang, false);
   });
 
   const embedded = window.parent !== window;
@@ -734,7 +740,9 @@
 
   function renderMarkdown(text) {
     // Pasted text is untrusted: marked passes raw HTML through, DOMPurify strips scripts.
-    out.innerHTML = DOMPurify.sanitize(marked.parse(fenceLooseCode(text), { gfm: true, breaks: true }));
+    // style and form are dropped: pasted Markdown could otherwise restyle the
+    // page or show a fake form on this origin (#24).
+    out.innerHTML = DOMPurify.sanitize(marked.parse(fenceLooseCode(text), { gfm: true, breaks: true }), { FORBID_TAGS: ['style', 'form'] });
     let previous = uiDir();
     // Document order, so a block with no letters follows the one before it.
     // Lists and tables get a direction too: it decides the bullet side and column order.
