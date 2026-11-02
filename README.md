@@ -17,6 +17,8 @@ The reader used to live at `/persian-reader/`; that address still forwards to
 | Tool | What it does | Live |
 |---|---|---|
 | [Reader](reader/) | Paste Persian or English text (or both) and read it in the right direction and a clear font, plain or rendered as Markdown, with reading settings (font, size, spacing, width, colour themes, reading ruler, focus view). | https://tools.whosane.dev/reader/ |
+| [Password generator](pwd-gen/) | A random password of the length and character sets you choose, from `crypto.getRandomValues`, with a strength bar and copy. Nothing is stored or sent. | https://tools.whosane.dev/pwd-gen/ |
+| [Azure logs](azure-logs/) | Read Azure Monitor resource logs from your storage account with a SAS token, grouped by resource, with paging and filters. The browser calls Azure Blob Storage directly; the token is never stored. The page explains the CORS rule the account needs. | https://tools.whosane.dev/azure-logs/ |
 
 ## Run it yourself
 
@@ -30,6 +32,18 @@ The pages need no server and no Cloudflare. Pick one:
   docker run --rm -p 8080:80 tools
   ```
   then http://localhost:8080
+
+## Tests
+
+`tests/tools.test.cjs` drives the pages in a headless browser with
+[Playwright](https://playwright.dev) (Azure is mocked, nothing goes online).
+Playwright is not a dependency of the site; install it anywhere and point
+`NODE_PATH` at it:
+
+```sh
+npm i --prefix /tmp/pw playwright && npx --prefix /tmp/pw playwright install chromium
+NODE_PATH=/tmp/pw/node_modules node tests/tools.test.cjs
+```
 
 ## Hosting
 

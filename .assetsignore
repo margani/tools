@@ -10,3 +10,4 @@ LICENSE
 Dockerfile
 wrangler.jsonc
 scripts
+tests

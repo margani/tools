@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<!-- The SAS token may only travel to Azure Blob Storage: connect-src names
+     nothing else, so even an injected script could not send it elsewhere. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://*.blob.core.windows.net; img-src data:; base-uri 'none'; form-action 'none'">
+<title>لاگ‌های Azure</title>
+<meta name="description" content="Read Azure Monitor resource logs from your storage account in the browser, grouped by resource. Nothing goes through a server.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --muted: #6b6b70;
+    --border: #e2e0da;
+    --accent: #2f6f5e;
+    --accent-text: #ffffff;
+    --focus: #2f6f5e55;
+    --code-bg: #f1efe9;
+    --radius: 14px;
+    --error: #b4232a;
+    --warning: #9a6200;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416;
+      --surface: #1e1e21;
+      --text: #ececee;
+      --muted: #9a9aa2;
+      --border: #333338;
+      --accent: #6cc4a8;
+      --accent-text: #0f1f1a;
+      --focus: #6cc4a855;
+      --code-bg: #26262a;
+      --error: #f08080;
+      --warning: #e0b050;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Vazirmatn", system-ui, sans-serif;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  .back { color: var(--muted); text-decoration: none; font-size: .95rem; }
+  .back:hover { color: var(--accent); }
+  .header-end { display: inline-flex; align-items: center; gap: 12px; }
+  .lang-toggle { min-height: 32px; padding: 2px 12px; font-size: .85rem; color: var(--muted); }
+  .embedded .back, .embedded .lang-toggle { display: none; }
+  .lead { color: var(--muted); margin: 4px 0 16px; }
+  a { color: var(--accent); }
+  button {
+    font: inherit;
+    font-size: .95rem;
+    padding: 8px 14px;
+    min-height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .55; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.small { min-height: 32px; padding: 2px 12px; font-size: .85rem; }
+  button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+  input, select {
+    font: inherit;
+    font-size: .95rem;
+    min-height: 40px;
+    width: 100%;
+    padding: 6px 10px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin: 0 0 16px;
+  }
+  .card[hidden] { display: none; }
+  /* Names, tokens, paths and JSON are Latin in either UI language. */
+  .ltr { direction: ltr; text-align: left; unicode-bidi: isolate; }
+  code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .85em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 6px; direction: ltr; unicode-bidi: isolate; }
+  pre {
+    direction: ltr;
+    text-align: left;
+    background: var(--code-bg);
+    padding: 10px 12px;
+    border-radius: 10px;
+    overflow-x: auto;
+    white-space: pre;
+    line-height: 1.5;
+    margin: 8px 0;
+    overflow-wrap: normal;
+  }
+  .help summary { cursor: pointer; font-weight: 600; }
+  .help ol { padding-inline-start: 1.4em; margin: 12px 0 0; }
+  .help ol[data-lang="fa"] { list-style-type: persian; }
+  .help li { margin-bottom: 12px; }
+  .help ul { padding-inline-start: 1.2em; margin: 6px 0; }
+  /* start, not end: the hint under the SAS field pushed the account field down. */
+  .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: start; }
+  .field label { display: block; color: var(--muted); font-size: .9rem; margin-bottom: 4px; }
+  .field .hint { color: var(--muted); font-size: .8rem; margin: 4px 0 0; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+  .msg { margin: 10px 0 0; font-size: .9rem; color: var(--muted); min-height: 0; }
+  .msg:empty { display: none; }
+  .msg.error { color: var(--error); }
+  .count { color: var(--muted); font-size: .9rem; }
+
+  .blobs { list-style: none; margin: 12px 0 0; padding: 0; border-top: 1px solid var(--border); }
+  .blobs li { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .blobs .name { flex: 1 1 auto; min-width: 0; font-size: .8rem; }
+  .blobs .res { color: var(--muted); }
+  .blobs .meta { flex: 0 0 auto; color: var(--muted); font-size: .8rem; white-space: nowrap; }
+  .blobs .state { flex: 0 0 auto; font-size: .8rem; color: var(--muted); }
+  .blobs .state.error { color: var(--error); }
+
+  .resources { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+  .res-chip {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    max-width: 100%;
+    min-height: 40px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    background: var(--bg);
+    text-align: start;
+  }
+  .res-chip[aria-pressed="true"] { border-color: var(--accent); background: var(--surface); box-shadow: inset 0 0 0 1px var(--accent); }
+  .res-chip .name { font-weight: 600; }
+  .res-chip .sub { color: var(--muted); font-size: .75rem; }
+  .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
+
+  .records { margin: 0; padding: 0; list-style: none; }
+  .records li { border-bottom: 1px solid var(--border); }
+  .records summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 8px 4px;
+    cursor: pointer;
+    list-style: none;
+    font-size: .85rem;
+  }
+  .records summary::-webkit-details-marker { display: none; }
+  .records .time { color: var(--muted); }
+  .records .op { font-weight: 600; }
+  .records .lvl { color: var(--muted); }
+  .records .lvl.bad { color: var(--error); }
+  .records .lvl.warn { color: var(--warning); }
+  .records pre { margin: 0 0 10px; max-height: 420px; overflow: auto; }
+  .pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; }
+  .empty { color: var(--muted); }
+  footer { margin-top: 28px; color: var(--muted); font-size: .85rem; }
+  @media (max-width: 480px) {
+    .card { padding: 14px; }
+    .blobs li { flex-wrap: wrap; }
+    .blobs .name { flex-basis: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 data-i18n="title">لاگ‌های Azure</h1>
+    <span class="header-end">
+      <button type="button" class="lang-toggle" id="langToggle"></button>
+      <a class="back" href="../index.html" data-i18n="back">همه‌ی ابزارها ←</a>
+    </span>
+  </header>
+  <p class="lead" data-i18n="lead">لاگ‌های منابع Azure Monitor را مستقیم از حساب ذخیره‌سازی خودتان بخوانید، دسته‌بندی‌شده بر اساس منبع. مرورگر مستقیم با Azure حرف می‌زند و هیچ چیز از سرور ما رد نمی‌شود.</p>
+
+  <details class="card help" id="help" open>
+    <summary data-i18n="setup">پیش از شروع: CORS و توکن SAS</summary>
+    <ol data-lang="fa">
+      <li>
+        <b>اجازه‌ی CORS.</b> مرورگر فقط وقتی می‌تواند از حساب ذخیره‌سازی بخواند که سرویس Blob آن، نشانی این صفحه را مجاز کرده باشد. در پورتال Azure: حساب ذخیره‌سازی ← Settings ← Resource sharing (CORS) ← زبانه‌ی Blob service، یک قانون بیفزایید:
+        <ul>
+          <li>مبدأهای مجاز (Allowed origins): <code class="origin"></code></li>
+          <li>روش‌های مجاز (Allowed methods): <code>GET</code> و <code>OPTIONS</code></li>
+          <li>سرآیندها (Allowed / Exposed headers): <code>*</code>، و Max age: <code>3600</code></li>
+        </ul>
+        یا با Azure CLI:
+        <pre class="cli"></pre>
+        اگر فایروال حساب روشن است، نشانی IP شما هم باید مجاز باشد. صفحه‌ای که از روی دیسک (file://) باز شود مبدأ ندارد؛ از نشانی وب یا یک سرور محلی استفاده کنید.
+      </li>
+      <li>
+        <b>توکن SAS فقط‌خواندنی.</b> حساب ذخیره‌سازی ← Security + networking ← Shared access signature:
+        <ul>
+          <li>سرویس: <code>Blob</code>؛ نوع منابع: <code>Service</code>، <code>Container</code>، <code>Object</code></li>
+          <li>دسترسی‌ها: فقط <code>Read</code> و <code>List</code>؛ پروتکل: <code>HTTPS only</code>؛ انقضای کوتاه</li>
+        </ul>
+        بدون نوع Service فهرست کانتینرها در دسترس نیست و نام کانتینر (مثل <code>insights-logs-…</code>) را باید خودتان بنویسید. توکن SAS یک کانتینر با Read و List هم کار می‌کند.
+      </li>
+      <li>
+        <b>توکن کجا می‌رود؟</b> فقط در حافظه‌ی همین صفحه می‌ماند: ذخیره نمی‌شود، در نشانی صفحه نمی‌آید و فقط به <code class="host">&lt;account&gt;.blob.core.windows.net</code> فرستاده می‌شود. با بستن یا بازخوانی صفحه فراموش می‌شود.
+      </li>
+    </ol>
+    <ol data-lang="en" hidden>
+      <li>
+        <b>Allow CORS.</b> The browser can only read the storage account if its Blob service allows this page's origin. In the Azure portal: storage account → Settings → Resource sharing (CORS) → the Blob service tab, add a rule:
+        <ul>
+          <li>Allowed origins: <code class="origin"></code></li>
+          <li>Allowed methods: <code>GET</code> and <code>OPTIONS</code></li>
+          <li>Allowed headers and Exposed headers: <code>*</code>; Max age: <code>3600</code></li>
+        </ul>
+        Or with the Azure CLI:
+        <pre class="cli"></pre>
+        If the account's firewall is on, your IP address must be allowed too. A page opened from disk (file://) has no origin; use the website or a local server.
+      </li>
+      <li>
+        <b>A read-only SAS token.</b> Storage account → Security + networking → Shared access signature:
+        <ul>
+          <li>Allowed services: <code>Blob</code>; resource types: <code>Service</code>, <code>Container</code>, <code>Object</code></li>
+          <li>Permissions: only <code>Read</code> and <code>List</code>; protocols: <code>HTTPS only</code>; a short expiry</li>
+        </ul>
+        Without the Service type the container list is not available, so type the container name (such as <code>insights-logs-…</code>) yourself. A container SAS with Read and List works too.
+      </li>
+      <li>
+        <b>Where does the token go?</b> It stays in this page's memory only: it is not saved, never appears in the address bar, and is sent only to <code class="host">&lt;account&gt;.blob.core.windows.net</code>. Closing or reloading the page forgets it.
+      </li>
+    </ol>
+  </details>
+
+  <section class="card" id="connectCard" data-i18n-aria="connectTitle" aria-label="اتصال">
+    <div class="fields">
+      <div class="field">
+        <label for="account" data-i18n="account">نام حساب ذخیره‌سازی</label>
+        <input id="account" class="ltr" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="mystorageaccount" maxlength="24">
+      </div>
+      <div class="field">
+        <label for="sas" data-i18n="sas">توکن SAS</label>
+        <input id="sas" class="ltr" type="password" autocomplete="off" spellcheck="false" placeholder="sv=…&amp;sig=…">
+        <p class="hint" data-i18n="sasHint">می‌توانید کل نشانی SAS را هم بچسبانید.</p>
+      </div>
+    </div>
+    <div class="row">
+      <button type="button" class="primary" id="connect" data-i18n="connect">اتصال</button>
+      <button type="button" id="disconnect" data-i18n="disconnect" hidden>قطع اتصال و فراموش کردن توکن</button>
+    </div>
+    <p class="msg" id="connectMsg" role="status"></p>
+  </section>
+
+  <section class="card" id="browseCard" hidden>
+    <h2 data-i18n="blobsTitle">فایل‌ها</h2>
+    <div class="fields">
+      <div class="field">
+        <label for="containerSel" data-i18n="container">کانتینر</label>
+        <select id="containerSel" class="ltr"></select>
+        <input id="containerName" class="ltr" type="text" autocomplete="off" spellcheck="false" placeholder="insights-logs-…" hidden data-i18n-aria="container" aria-label="کانتینر">
+      </div>
+      <div class="field">
+        <label for="prefix" data-i18n="prefix">پیشوند مسیر (اختیاری)</label>
+        <input id="prefix" class="ltr" type="text" autocomplete="off" spellcheck="false" placeholder="resourceId=/SUBSCRIPTIONS/…/y=2026/m=11/d=02">
+      </div>
+      <div class="field">
+        <label for="pageSize" data-i18n="pageSize">تعداد در هر صفحه</label>
+        <select id="pageSize"><option>25</option><option selected>50</option><option>100</option><option>250</option></select>
+      </div>
+    </div>
+    <div class="row">
+      <button type="button" class="primary" id="list" data-i18n="list">فهرست فایل‌ها</button>
+      <button type="button" id="more" data-i18n="more" hidden>صفحه‌ی بعد</button>
+      <button type="button" id="loadAll" data-i18n="loadAll" hidden>بارگذاری همه‌ی فهرست</button>
+      <span class="count" id="blobCount"></span>
+    </div>
+    <p class="msg" id="browseMsg" role="status"></p>
+    <ul class="blobs" id="blobs"></ul>
+  </section>
+
+  <section class="card" id="logsCard" hidden>
+    <h2 data-i18n="logsTitle">رکوردها</h2>
+    <div class="resources" id="resources" role="group" data-i18n-aria="resources" aria-label="منابع"></div>
+    <div class="filters">
+      <div class="field"><label for="q" data-i18n="search">جست‌وجو</label><input id="q" type="search" dir="auto" autocomplete="off"></div>
+      <div class="field"><label for="fCategory" data-i18n="category">دسته</label><select id="fCategory" class="ltr"></select></div>
+      <div class="field"><label for="fOperation" data-i18n="operation">عملیات</label><select id="fOperation" class="ltr"></select></div>
+      <div class="field"><label for="fLevel" data-i18n="level">سطح یا نتیجه</label><select id="fLevel" class="ltr"></select></div>
+    </div>
+    <p class="count" id="recordCount" aria-live="polite"></p>
+    <ul class="records" id="records"></ul>
+    <div class="pager" id="pager" hidden>
+      <button type="button" class="small" id="prev" data-i18n="prev">قبلی</button>
+      <span class="count" id="pageInfo"></span>
+      <button type="button" class="small" id="next" data-i18n="next">بعدی</button>
+    </div>
+  </section>
+
+  <footer data-i18n="footer">همه‌چیز در همین مرورگر انجام می‌شود؛ توکن و لاگ‌ها ذخیره نمی‌شوند و جز به Azure به جایی فرستاده نمی‌شوند.</footer>
+</div>
+
+<script>
+  'use strict';
+
+  // ---- Pure helpers (also used by tests/tools.test.cjs) ----
+
+  const ACCOUNT_RE = /^[a-z0-9]{3,24}$/;
+  // Container names: 3–63 of a-z, 0-9 and single hyphens, starting and ending
+  // with a letter or digit; $logs holds Storage Analytics logs.
+  const CONTAINER_RE = /^(?:\$logs|[a-z0-9](?:[a-z0-9]|-(?!-)){1,61}[a-z0-9])$/;
+
+  // Accepts a bare token ("sv=…&sig=…" or "?sv=…") or a whole SAS URL, which
+  // also names the account and, for a container SAS, the container.
+  function parseSasInput(raw) {
+    let text = String(raw || '').trim();
+    const out = { sas: '', account: '', container: '' };
+    if (/^https:\/\//i.test(text)) {
+      let u;
+      try { u = new URL(text); } catch (e) { return out; }
+      const m = u.hostname.toLowerCase().match(/^([a-z0-9]{3,24})\.blob\.core\.windows\.net$/);
+      if (m) out.account = m[1];
+      const first = decodeURIComponent(u.pathname.split('/')[1] || '');
+      if (CONTAINER_RE.test(first)) out.container = first;
+      text = u.search;
+    }
+    out.sas = text.replace(/^\?/, '');
+    return out;
+  }
+
+  // "…/resourceId=/SUBSCRIPTIONS/…/NAME/y=2026/m=11/…" → "/SUBSCRIPTIONS/…/NAME"
+  function resourceFromPath(blobName) {
+    const m = String(blobName).match(/resourceId=(\/.+?)\/y=\d{4}\//i);
+    return m ? m[1] : '';
+  }
+
+  // /SUBSCRIPTIONS/{sub}/RESOURCEGROUPS/{rg}/PROVIDERS/{ns}/{type}/{name}[/{type}/{name}…]
+  function parseResourceId(id) {
+    const parts = String(id || '').split('/').filter(Boolean);
+    const out = { id: String(id || ''), subscription: '', group: '', type: '', name: '' };
+    for (let i = 0; i < parts.length - 1; i++) {
+      const k = parts[i].toUpperCase();
+      if (k === 'SUBSCRIPTIONS' && !out.subscription) out.subscription = parts[i + 1];
+      else if (k === 'RESOURCEGROUPS' && !out.group) out.group = parts[i + 1];
+      else if (k === 'PROVIDERS') {
+        const rest = parts.slice(i + 1);
+        const types = [rest[0]];
+        for (let j = 1; j < rest.length; j += 2) types.push(rest[j]);
+        out.type = types.filter(Boolean).join('/');
+        out.name = rest.length > 2 ? rest[rest.length - 1] : '';
+        break;
+      }
+    }
+    if (!out.name) out.name = out.group || out.subscription || out.id;
+    return out;
+  }
+
+  // List Blobs / List Containers responses (XML). NextMarker is empty on the last page.
+  function parseBlobList(xmlText) {
+    const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('bad XML');
+    const text = (el, tag) => el.getElementsByTagName(tag)[0]?.textContent || '';
+    const blobs = [...doc.getElementsByTagName('Blob')].map(b => ({
+      name: text(b, 'Name'),
+      size: Number(text(b, 'Content-Length')) || 0,
+      modified: text(b, 'Last-Modified'),
+    }));
+    const containers = [...doc.getElementsByTagName('Container')].map(c => text(c, 'Name'));
+    const next = doc.getElementsByTagName('NextMarker')[0]?.textContent || '';
+    return { blobs, containers, next };
+  }
+
+  // Azure Monitor writes JSON Lines (one record per line); older blobs and some
+  // categories (NSG flow logs) hold one {"records": [...]} object instead.
+  function parseRecords(body) {
+    const text = String(body).replace(/^\uFEFF/, '').trim();
+    if (!text) return { records: [], bad: 0 };
+    if (text[0] === '{') {
+      try {
+        const whole = JSON.parse(text);
+        if (Array.isArray(whole.records)) return { records: whole.records.filter(r => r && typeof r === 'object'), bad: 0 };
+        return { records: [whole], bad: 0 };
+      } catch (e) { /* more than one line: fall through */ }
+    }
+    const records = [];
+    let bad = 0;
+    for (const line of text.split(/\r?\n/)) {
+      const s = line.trim().replace(/,$/, '');
+      if (!s) continue;
+      try {
+        const r = JSON.parse(s);
+        if (r && typeof r === 'object') records.push(r); else bad++;
+      } catch (e) { bad++; }
+    }
+    return { records, bad };
+  }
+
+  const field = (r, ...keys) => { for (const k of keys) if (r[k] != null && r[k] !== '') return String(r[k]); return ''; };
+  const levelOf = r => field(r, 'level', 'Level', 'resultType', 'resultSignature');
+
+  // ---- UI language (#14) ----
+
+  const STRINGS = {
+    fa: {
+      title: 'لاگ‌های Azure',
+      back: 'همه‌ی ابزارها ←',
+      lead: 'لاگ‌های منابع Azure Monitor را مستقیم از حساب ذخیره‌سازی خودتان بخوانید، دسته‌بندی‌شده بر اساس منبع. مرورگر مستقیم با Azure حرف می‌زند و هیچ چیز از سرور ما رد نمی‌شود.',
+      setup: 'پیش از شروع: CORS و توکن SAS',
+      connectTitle: 'اتصال',
+      account: 'نام حساب ذخیره‌سازی',
+      sas: 'توکن SAS',
+      sasHint: 'می‌توانید کل نشانی SAS را هم بچسبانید.',
+      connect: 'اتصال',
+      disconnect: 'قطع اتصال و فراموش کردن توکن',
+      blobsTitle: 'فایل‌ها',
+      container: 'کانتینر',
+      typeContainer: 'نوشتن نام کانتینر…',
+      prefix: 'پیشوند مسیر (اختیاری)',
+      pageSize: 'تعداد در هر صفحه',
+      list: 'فهرست فایل‌ها',
+      more: 'صفحه‌ی بعد',
+      loadAll: 'بارگذاری همه‌ی فهرست',
+      load: 'بارگذاری',
+      logsTitle: 'رکوردها',
+      resources: 'منابع',
+      allResources: 'همه‌ی منابع',
+      search: 'جست‌وجو',
+      category: 'دسته',
+      operation: 'عملیات',
+      level: 'سطح یا نتیجه',
+      any: 'همه',
+      prev: 'قبلی',
+      next: 'بعدی',
+      footer: 'همه‌چیز در همین مرورگر انجام می‌شود؛ توکن و لاگ‌ها ذخیره نمی‌شوند و جز به Azure به جایی فرستاده نمی‌شوند.',
+      errAccount: 'نام حساب باید ۳ تا ۲۴ حرف کوچک لاتین یا رقم باشد.',
+      errSas: 'توکن SAS کامل نیست؛ پارامتر sig را ندارد.',
+      errContainer: 'نام کانتینر معتبر نیست.',
+      errNetwork: 'درخواست به Azure نرسید یا مرورگر پاسخ را نپذیرفت. معمولاً یعنی قانون CORS برای این نشانی تنظیم نشده یا فایروال حساب جلوی آن را گرفته؛ بخش «پیش از شروع» را ببینید.',
+      errAzure: (status, code, msg) => 'پاسخ Azure: ' + status + ' ' + code + (msg ? ' — ' + msg : ''),
+      errType: 'این توکن به این نوع منبع دسترسی ندارد؛ نوع‌های Service، Container و Object را در SAS فعال کنید.',
+      errAuth: 'امضای توکن پذیرفته نشد یا توکن منقضی شده است.',
+      errPerm: 'این توکن دسترسی لازم را ندارد؛ Read و List هر دو لازم‌اند.',
+      noContainers: 'فهرست کانتینرها در دسترس نیست (احتمالاً توکن نوع Service را ندارد)؛ نام کانتینر را بنویسید.',
+      connected: n => 'متصل شد؛ ' + n + ' کانتینر پیدا شد.',
+      connectedContainer: 'متصل شد.',
+      checking: 'در حال اتصال…',
+      listing: 'در حال فهرست کردن…',
+      blobCount: (n, more) => 'فایل‌های فهرست‌شده: ' + n + (more ? '، صفحه‌های بیشتری هست' : ''),
+      noBlobs: 'هیچ فایلی با این پیشوند پیدا نشد.',
+      loading: (d, n) => 'در حال بارگذاری ' + d + ' از ' + n + '…',
+      loadedState: n => 'رکوردها: ' + n,
+      badLines: n => 'سطرهای ناخوانا: ' + n,
+      failed: 'خطا',
+      recordCount: (shown, total) => 'رکوردها: ' + shown + ' از ' + total,
+      pageInfo: (p, n) => 'صفحه‌ی ' + p + ' از ' + n,
+      noRecords: 'هنوز رکوردی نیامده؛ فایل‌ها را فهرست و بارگذاری کنید.',
+      noMatch: 'هیچ رکوردی با این فیلترها جور نیست.',
+    },
+    en: {
+      title: 'Azure logs',
+      back: '← All tools',
+      lead: 'Read Azure Monitor resource logs straight from your own storage account, grouped by resource. Your browser talks to Azure directly; nothing goes through our server.',
+      setup: 'Before you start: CORS and the SAS token',
+      connectTitle: 'Connect',
+      account: 'Storage account name',
+      sas: 'SAS token',
+      sasHint: 'You can also paste the whole SAS URL.',
+      connect: 'Connect',
+      disconnect: 'Disconnect and forget the token',
+      blobsTitle: 'Blobs',
+      container: 'Container',
+      typeContainer: 'Type a container name…',
+      prefix: 'Path prefix (optional)',
+      pageSize: 'Per page',
+      list: 'List blobs',
+      more: 'Next page',
+      loadAll: 'Load everything listed',
+      load: 'Load',
+      logsTitle: 'Records',
+      resources: 'Resources',
+      allResources: 'All resources',
+      search: 'Search',
+      category: 'Category',
+      operation: 'Operation',
+      level: 'Level or result',
+      any: '(all)',
+      prev: 'Previous',
+      next: 'Next',
+      footer: 'Everything happens in this browser; the token and the logs are not stored and go nowhere but Azure.',
+      errAccount: 'The account name must be 3 to 24 lowercase letters or digits.',
+      errSas: 'The SAS token looks incomplete: it has no sig parameter.',
+      errContainer: 'That container name is not valid.',
+      errNetwork: 'The request did not reach Azure, or the browser refused the answer. This usually means the CORS rule for this origin is missing, or the account firewall blocks you; see "Before you start".',
+      errAzure: (status, code, msg) => 'Azure answered ' + status + ' ' + code + (msg ? ' — ' + msg : ''),
+      errType: 'This token cannot reach this kind of resource; enable the Service, Container and Object resource types in the SAS.',
+      errAuth: 'The token signature was not accepted, or the token has expired.',
+      errPerm: 'This token lacks a permission it needs; both Read and List are required.',
+      noContainers: 'The container list is not available (the token probably lacks the Service type); type the container name.',
+      connected: n => 'Connected; ' + n + (n === '1' ? ' container' : ' containers') + ' found.',
+      connectedContainer: 'Connected.',
+      checking: 'Connecting…',
+      listing: 'Listing…',
+      blobCount: (n, more) => n + ' blobs listed' + (more ? ', more pages available' : ''),
+      noBlobs: 'No blobs found with this prefix.',
+      loading: (d, n) => 'Loading ' + d + ' of ' + n + '…',
+      loadedState: n => n + ' records',
+      badLines: n => n + ' unreadable lines',
+      failed: 'Error',
+      recordCount: (shown, total) => shown + ' of ' + total + ' records',
+      pageInfo: (p, n) => 'Page ' + p + ' of ' + n,
+      noRecords: 'No records yet; list some blobs and load them.',
+      noMatch: 'No records match these filters.',
+    },
+  };
+  const LANG_KEY = 'tools:lang';
+  function initialLang() {
+    const asked = new URLSearchParams(location.search).get('lang');
+    if (asked === 'fa' || asked === 'en') return asked;
+    try {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved === 'fa' || saved === 'en') return saved;
+    } catch (e) {}
+    return (navigator.languages || [navigator.language]).some(l => /^fa(-|$)/i.test(l)) ? 'fa' : 'en';
+  }
+  let lang = initialLang();
+  const t = key => STRINGS[lang][key];
+  const num = n => Number(n).toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
+  const $ = id => document.getElementById(id);
+
+  // ---- Connection. The SAS token lives only in this closure. ----
+
+  let conn = null; // { account, sas }
+  const blobs = new Map(); // name -> { name, size, modified, resource, state, count, el }
+  let nextMarker = '';
+  let records = []; // { r, key, time, text }
+  const resources = new Map(); // key -> { info, count }
+  let lastConnectMsg = null; // [key, ...args] so the message follows a language switch
+
+  class AzError extends Error {
+    constructor(kind, status, code, detail) { super(kind); this.kind = kind; this.status = status; this.code = code; this.detail = detail; }
+  }
+
+  function blobUrl(path, params) {
+    const u = new URL('https://' + conn.account + '.blob.core.windows.net/');
+    u.pathname = '/' + path;
+    const q = new URLSearchParams(params || {}).toString();
+    u.search = (q ? q + '&' : '') + conn.sas;
+    return u.toString();
+  }
+
+  // A blob path keeps its slashes; every segment is percent-encoded on its own.
+  const encodePath = p => p.split('/').map(encodeURIComponent).join('/');
+
+  async function azGet(path, params) {
+    let res;
+    try {
+      // No custom headers, so the browser sends a simple CORS request; the
+      // URL (with the token) is never shown or logged.
+      res = await fetch(blobUrl(path, params), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+    } catch (e) {
+      throw new AzError('network');
+    }
+    const body = await res.text();
+    if (!res.ok) {
+      let code = '', detail = '';
+      try {
+        const doc = new DOMParser().parseFromString(body, 'application/xml');
+        code = doc.getElementsByTagName('Code')[0]?.textContent || '';
+        // Only the first line: the rest repeats request ids and timestamps.
+        detail = (doc.getElementsByTagName('Message')[0]?.textContent || '').split('\n')[0].slice(0, 200);
+      } catch (e) {}
+      throw new AzError('azure', res.status, code, detail);
+    }
+    return body;
+  }
+
+  function errorText(err) {
+    if (!(err instanceof AzError)) return t('errNetwork');
+    if (err.kind === 'network') return t('errNetwork');
+    if (err.code === 'AuthorizationResourceTypeMismatch') return t('errType');
+    if (err.code === 'AuthenticationFailed') return t('errAuth');
+    if (err.code === 'AuthorizationPermissionMismatch') return t('errPerm');
+    return t('errAzure')(err.status, err.code || '', err.detail || '');
+  }
+
+  function setMsg(el, text, isError) {
+    el.textContent = text || '';
+    el.classList.toggle('error', !!isError);
+  }
+
+  async function connect() {
+    const parsed = parseSasInput($('sas').value);
+    const account = ($('account').value.trim().toLowerCase() || parsed.account);
+    const msg = $('connectMsg');
+    if (parsed.account && !$('account').value.trim()) $('account').value = parsed.account;
+    if (!ACCOUNT_RE.test(account)) return setMsg(msg, t('errAccount'), true);
+    if (!/(^|&)sig=/.test(parsed.sas)) return setMsg(msg, t('errSas'), true);
+    // The SAS field is emptied as soon as the token is taken, so the value is
+    // not left in the DOM where an extension or a screenshot could pick it up.
+    $('sas').value = '';
+    conn = { account, sas: parsed.sas };
+    setMsg(msg, t('checking'));
+    $('connect').disabled = true;
+    resetData();
+    const sel = $('containerSel');
+    sel.replaceChildren();
+    let names = [];
+    const q = new URLSearchParams(parsed.sas);
+    // A container (service) SAS, or an account SAS without the Service type,
+    // cannot list containers, and Azure answers that with the same 403 as a
+    // wrong signature. So the listing is only tried when the token allows it,
+    // and any error from it means the token or the account is wrong (#22).
+    const canList = !q.has('sr') && (!q.has('srt') || q.get('srt').includes('s'));
+    try {
+      if (canList) {
+        names = parseBlobList(await azGet('', { comp: 'list', maxresults: '500' })).containers;
+        lastConnectMsg = ['connected', names.length];
+      } else {
+        // Checked here instead of at the first listing, so a wrong token
+        // still fails on Connect rather than later.
+        if (parsed.container) await azGet(encodePath(parsed.container), { restype: 'container', comp: 'list', maxresults: '1' });
+        lastConnectMsg = [parsed.container ? 'connectedContainer' : 'noContainers'];
+      }
+    } catch (err) {
+      if (err instanceof AzError && err.code === 'AuthorizationResourceTypeMismatch') {
+        lastConnectMsg = ['noContainers'];
+      } else {
+        conn = null;
+        $('connect').disabled = false;
+        lastConnectMsg = null;
+        return setMsg(msg, errorText(err), true);
+      }
+    }
+    // Resource-log containers first: they are what this tool reads.
+    names.sort((a, b) => (b.startsWith('insights-') - a.startsWith('insights-')) || a.localeCompare(b));
+    for (const n of names) sel.append(new Option(n, n));
+    sel.append(new Option(t('typeContainer'), ''));
+    if (parsed.container) {
+      if (!names.includes(parsed.container)) sel.prepend(new Option(parsed.container, parsed.container));
+      sel.value = parsed.container;
+    } else if (!names.length) sel.value = '';
+    syncContainerInput();
+    showConnectMsg();
+    $('connect').disabled = false;
+    $('connect').hidden = true;
+    $('disconnect').hidden = false;
+    $('account').disabled = $('sas').disabled = true;
+    $('browseCard').hidden = false;
+    postTitle();
+  }
+
+  function showConnectMsg() {
+    if (!lastConnectMsg) return setMsg($('connectMsg'), '');
+    const [key, ...args] = lastConnectMsg;
+    const s = t(key);
+    setMsg($('connectMsg'), typeof s === 'function' ? s(...args.map(num)) : s, key === 'noContainers');
+  }
+
+  function disconnect() {
+    conn = null;
+    lastConnectMsg = null;
+    $('sas').value = '';
+    $('account').disabled = $('sas').disabled = false;
+    $('connect').hidden = false;
+    $('disconnect').hidden = true;
+    $('browseCard').hidden = true;
+    $('containerSel').replaceChildren();
+    resetData();
+    setMsg($('connectMsg'), '');
+    postTitle();
+  }
+
+  function resetData() {
+    blobs.clear();
+    records = [];
+    resources.clear();
+    nextMarker = '';
+    activeResource = '';
+    page = 0;
+    $('blobs').replaceChildren();
+    $('more').hidden = $('loadAll').hidden = true;
+    $('blobCount').textContent = '';
+    setMsg($('browseMsg'), '');
+    $('logsCard').hidden = true;
+  }
+
+  function syncContainerInput() {
+    const manual = $('containerSel').value === '';
+    $('containerName').hidden = !manual;
+  }
+  function currentContainer() {
+    const v = $('containerSel').value || $('containerName').value.trim();
+    return CONTAINER_RE.test(v) ? v : '';
+  }
+
+  // ---- Blob listing, one page at a time ----
+
+  async function listBlobs(append) {
+    const container = currentContainer();
+    const msg = $('browseMsg');
+    if (!container) return setMsg(msg, t('errContainer'), true);
+    if (!append) {
+      blobs.clear();
+      nextMarker = '';
+      $('blobs').replaceChildren();
+    }
+    const params = { restype: 'container', comp: 'list', maxresults: $('pageSize').value };
+    const prefix = $('prefix').value.trim();
+    if (prefix) params.prefix = prefix;
+    if (append && nextMarker) params.marker = nextMarker;
+    setMsg(msg, t('listing'));
+    $('list').disabled = $('more').disabled = true;
+    try {
+      const out = parseBlobList(await azGet(encodePath(container), params));
+      nextMarker = out.next;
+      for (const b of out.blobs) {
+        if (blobs.has(b.name)) continue;
+        const entry = { ...b, container, resource: resourceFromPath(b.name), state: 'listed', count: 0, bad: 0 };
+        blobs.set(b.name, entry);
+        $('blobs').append(blobRow(entry));
+      }
+      setMsg(msg, blobs.size ? '' : t('noBlobs'));
+    } catch (err) {
+      setMsg(msg, errorText(err), true);
+    }
+    $('list').disabled = $('more').disabled = false;
+    updateBlobCount();
+    postTitle();
+  }
+
+  function updateBlobCount() {
+    $('blobCount').textContent = blobs.size ? t('blobCount')(num(blobs.size), !!nextMarker) : '';
+    $('more').hidden = !nextMarker;
+    $('loadAll').hidden = ![...blobs.values()].some(b => b.state === 'listed' || b.state === 'error');
+  }
+
+  const fmtSize = n => n < 1024 ? num(n) + ' B' : n < 1048576 ? num(Math.round(n / 1024)) + ' KB' : num((n / 1048576).toFixed(1)) + ' MB';
+
+  function blobRow(entry) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name mono ltr';
+    // The long resourceId prefix is shown once per resource below; here the
+    // part after it (the date path) tells blobs of one resource apart.
+    const res = entry.resource ? parseResourceId(entry.resource) : null;
+    if (res) {
+      const r = document.createElement('span');
+      r.className = 'res';
+      r.textContent = res.name + ' · ';
+      name.append(r, entry.name.slice(entry.name.indexOf('/y=') + 1));
+    } else name.textContent = entry.name;
+    name.title = entry.name;
+    const meta = document.createElement('span');
+    meta.className = 'meta ltr';
+    meta.textContent = fmtSize(entry.size);
+    const state = document.createElement('span');
+    state.className = 'state';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'small';
+    btn.addEventListener('click', () => loadBlobs([entry]));
+    li.append(name, meta, state, btn);
+    entry.el = { state, btn };
+    paintBlob(entry);
+    return li;
+  }
+  function paintBlob(entry) {
+    const { state, btn } = entry.el;
+    btn.textContent = t('load');
+    btn.hidden = entry.state === 'loaded' || entry.state === 'loading';
+    state.classList.toggle('error', entry.state === 'error');
+    state.textContent = entry.state === 'loaded'
+      ? t('loadedState')(num(entry.count)) + (entry.bad ? ' · ' + t('badLines')(num(entry.bad)) : '')
+      : entry.state === 'loading' ? '…' : entry.state === 'error' ? t('failed') : '';
+    if (entry.state === 'error' && entry.error) state.title = entry.error;
+  }
+
+  // Blobs load on demand, four at a time, instead of every blob at once as
+  // the 2023 version did, which froze the tab on a busy account.
+  async function loadBlobs(list) {
+    const todo = list.filter(b => b.state === 'listed' || b.state === 'error');
+    if (!todo.length || !conn) return;
+    let done = 0;
+    const msg = $('browseMsg');
+    setMsg(msg, t('loading')(num(0), num(todo.length)));
+    $('loadAll').disabled = true;
+    const queue = [...todo];
+    async function worker() {
+      while (queue.length) {
+        const entry = queue.shift();
+        entry.state = 'loading';
+        paintBlob(entry);
+        try {
+          const body = await azGet(encodePath(entry.container) + '/' + encodePath(entry.name));
+          const out = parseRecords(body);
+          addRecords(out.records, entry);
+          entry.count = out.records.length;
+          entry.bad = out.bad;
+          entry.state = 'loaded';
+        } catch (err) {
+          entry.state = 'error';
+          entry.error = errorText(err);
+        }
+        paintBlob(entry);
+        setMsg(msg, t('loading')(num(++done), num(todo.length)));
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(4, todo.length) }, worker));
+    const failed = todo.find(b => b.state === 'error');
+    setMsg(msg, failed ? failed.error : '', !!failed);
+    $('loadAll').disabled = false;
+    updateBlobCount();
+    renderLogs();
+  }
+
+  function addRecords(list, entry) {
+    for (const r of list) {
+      // The record's own resourceId wins; the blob path is the fallback.
+      const id = field(r, 'resourceId', 'ResourceId') || entry.resource || '(unknown)';
+      const key = id.toUpperCase();
+      if (!resources.has(key)) resources.set(key, { info: parseResourceId(id), count: 0 });
+      resources.get(key).count++;
+      const time = Date.parse(field(r, 'time', 'TimeGenerated', 'timeStamp')) || 0;
+      records.push({ r, key, time, text: JSON.stringify(r).toLowerCase() });
+    }
+  }
+
+  // ---- Records: grouping by resource, filters and paging ----
+
+  const PAGE = 100;
+  let activeResource = '';
+  let page = 0;
+
+  function fillSelect(sel, values) {
+    const keep = sel.value;
+    sel.replaceChildren(new Option(t('any'), ''));
+    for (const v of [...values].sort()) sel.append(new Option(v, v));
+    sel.value = values.has(keep) ? keep : '';
+  }
+
+  function renderLogs() {
+    if (!records.length) {
+      $('logsCard').hidden = blobs.size === 0 || ![...blobs.values()].some(b => b.state === 'loaded');
+      if (!$('logsCard').hidden) {
+        $('resources').replaceChildren();
+        $('recordCount').textContent = t('noRecords');
+        $('records').replaceChildren();
+        $('pager').hidden = true;
+      }
+      return;
+    }
+    $('logsCard').hidden = false;
+    records.sort((a, b) => b.time - a.time);
+
+    const box = $('resources');
+    box.replaceChildren();
+    const chip = (key, title, sub, count) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'res-chip';
+      b.setAttribute('aria-pressed', String(activeResource === key));
+      const n = document.createElement('span');
+      n.className = 'name ltr';
+      n.textContent = title + ' (' + num(count) + ')';
+      b.append(n);
+      if (sub) {
+        const s = document.createElement('span');
+        s.className = 'sub ltr';
+        s.textContent = sub;
+        b.append(s);
+        b.title = sub;
+      }
+      b.addEventListener('click', () => { activeResource = key; page = 0; renderLogs(); });
+      box.append(b);
+    };
+    chip('', t('allResources'), '', records.length);
+    for (const [key, { info, count }] of [...resources].sort((a, b) => b[1].count - a[1].count)) {
+      chip(key, info.name, [info.type, info.group].filter(Boolean).join(' · '), count);
+    }
+
+    const inRes = activeResource ? records.filter(x => x.key === activeResource) : records;
+    const cats = new Set(), ops = new Set(), lvls = new Set();
+    for (const { r } of inRes) {
+      const c = field(r, 'category', 'Category'); if (c) cats.add(c);
+      const o = field(r, 'operationName', 'OperationName'); if (o) ops.add(o);
+      const l = levelOf(r); if (l) lvls.add(l);
+    }
+    fillSelect($('fCategory'), cats);
+    fillSelect($('fOperation'), ops);
+    fillSelect($('fLevel'), lvls);
+
+    const q = $('q').value.trim().toLowerCase();
+    const fc = $('fCategory').value, fo = $('fOperation').value, fl = $('fLevel').value;
+    const shown = inRes.filter(({ r, text }) =>
+      (!fc || field(r, 'category', 'Category') === fc) &&
+      (!fo || field(r, 'operationName', 'OperationName') === fo) &&
+      (!fl || levelOf(r) === fl) &&
+      (!q || text.includes(q)));
+
+    const pages = Math.max(1, Math.ceil(shown.length / PAGE));
+    page = Math.min(page, pages - 1);
+    $('recordCount').textContent = shown.length ? t('recordCount')(num(shown.length), num(records.length)) : t('noMatch');
+    const list = $('records');
+    list.replaceChildren();
+    for (const x of shown.slice(page * PAGE, page * PAGE + PAGE)) list.append(recordRow(x));
+    $('pager').hidden = pages < 2;
+    $('pageInfo').textContent = t('pageInfo')(num(page + 1), num(pages));
+    $('prev').disabled = page === 0;
+    $('next').disabled = page >= pages - 1;
+  }
+
+  // Log content is untrusted text: it is only ever set with textContent.
+  function recordRow({ r, key }) {
+    const li = document.createElement('li');
+    const d = document.createElement('details');
+    const s = document.createElement('summary');
+    s.className = 'ltr';
+    const span = (cls, text) => { const e = document.createElement('span'); e.className = cls; e.textContent = text; return e; };
+    const time = field(r, 'time', 'TimeGenerated', 'timeStamp');
+    s.append(span('time mono', time ? time.replace('T', ' ').slice(0, 19) + ' UTC' : '—'));
+    if (!activeResource) s.append(span('res', resources.get(key)?.info.name || ''));
+    s.append(span('cat', field(r, 'category', 'Category')));
+    s.append(span('op', field(r, 'operationName', 'OperationName')));
+    const lvl = levelOf(r);
+    const lv = span('lvl', lvl);
+    if (/^(error|critical|failure|failed)$/i.test(lvl) || /^[45]\d\d$/.test(field(r, 'resultSignature'))) lv.classList.add('bad');
+    else if (/^warn/i.test(lvl)) lv.classList.add('warn');
+    s.append(lv);
+    d.append(s);
+    // The JSON is only built when a row is opened: a page of 100 big records
+    // would otherwise stringify megabytes up front.
+    d.addEventListener('toggle', () => {
+      if (d.open && !d.querySelector('pre')) {
+        const pre = document.createElement('pre');
+        pre.textContent = JSON.stringify(r, null, 2);
+        d.append(pre);
+      }
+    });
+    li.append(d);
+    return li;
+  }
+
+  // ---- Tab title and language ----
+
+  const embedded = window.parent !== window;
+  if (embedded) document.documentElement.classList.add('embedded');
+  // The tab is named after the account and container, never the token.
+  function postTitle() {
+    if (!embedded) return;
+    const title = conn ? [conn.account, currentContainer()].filter(Boolean).join(' / ') : '';
+    window.parent.postMessage({ type: 'tools:title', title }, location.protocol === 'file:' ? '*' : location.origin);
+  }
+
+  function fillHelp() {
+    const origin = location.protocol === 'file:' ? 'https://tools.whosane.dev' : location.origin;
+    for (const el of document.querySelectorAll('.origin')) el.textContent = origin;
+    for (const el of document.querySelectorAll('.cli')) {
+      el.textContent = 'az storage cors add --account-name <account> --services b \\\n  --methods GET OPTIONS --origins ' + origin + ' \\\n  --allowed-headers "*" --exposed-headers "*" --max-age 3600';
+    }
+  }
+
+  function applyLang() {
+    const root = document.documentElement;
+    root.lang = lang;
+    root.dir = lang === 'fa' ? 'rtl' : 'ltr';
+    document.title = t('title');
+    for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+    for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+    for (const el of document.querySelectorAll('[data-lang]')) el.hidden = el.dataset.lang !== lang;
+    const langToggle = $('langToggle');
+    langToggle.textContent = lang === 'fa' ? 'English' : 'فارسی';
+    langToggle.lang = lang === 'fa' ? 'en' : 'fa';
+    const manual = [...$('containerSel').options].find(o => o.value === '');
+    if (manual) manual.textContent = t('typeContainer');
+    showConnectMsg();
+    for (const b of blobs.values()) if (b.el) paintBlob(b);
+    updateBlobCount();
+    renderLogs();
+  }
+  function setLang(next, remember) {
+    if (next !== 'fa' && next !== 'en') return;
+    lang = next;
+    if (remember) try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    applyLang();
+  }
+  $('langToggle').addEventListener('click', () => setLang(lang === 'fa' ? 'en' : 'fa', true));
+  window.addEventListener('storage', e => { if (e.key === LANG_KEY) setLang(e.newValue, false); });
+  window.addEventListener('message', e => {
+    if (e.source === window.parent && e.data && e.data.type === 'tools:lang') setLang(e.data.lang, false);
+  });
+
+  // ---- Wiring ----
+
+  $('connect').addEventListener('click', connect);
+  for (const id of ['account', 'sas']) $(id).addEventListener('keydown', e => { if (e.key === 'Enter') connect(); });
+  $('disconnect').addEventListener('click', disconnect);
+  $('containerSel').addEventListener('change', () => { syncContainerInput(); postTitle(); });
+  $('containerName').addEventListener('change', postTitle);
+  $('list').addEventListener('click', () => listBlobs(false));
+  $('prefix').addEventListener('keydown', e => { if (e.key === 'Enter') listBlobs(false); });
+  $('more').addEventListener('click', () => listBlobs(true));
+  $('loadAll').addEventListener('click', () => loadBlobs([...blobs.values()]));
+  $('q').addEventListener('input', () => { page = 0; renderLogs(); });
+  for (const id of ['fCategory', 'fOperation', 'fLevel']) $(id).addEventListener('change', () => { page = 0; renderLogs(); });
+  $('prev').addEventListener('click', () => { page--; renderLogs(); $('logsCard').scrollIntoView({ block: 'start' }); });
+  $('next').addEventListener('click', () => { page++; renderLogs(); $('logsCard').scrollIntoView({ block: 'start' }); });
+
+  window.azureLogs = { parseSasInput, resourceFromPath, parseResourceId, parseBlobList, parseRecords };
+
+  fillHelp();
+  applyLang();
+</script>
+</body>
+</html>

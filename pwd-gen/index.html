@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<!-- The page makes no requests of its own; the CSP keeps it that way (no
+     connect-src), so a generated password has nowhere to go. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; base-uri 'none'; form-action 'none'">
+<title>ساخت رمز</title>
+<meta name="description" content="Generate strong random passwords in the browser with crypto.getRandomValues. Nothing is stored or sent.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --muted: #6b6b70;
+    --border: #e2e0da;
+    --accent: #2f6f5e;
+    --accent-text: #ffffff;
+    --focus: #2f6f5e55;
+    --code-bg: #f1efe9;
+    --radius: 14px;
+    --weak: #b4232a;
+    --fair: #9a6200;
+    --good: #2f6f9e;
+    --strong: #2f6f5e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416;
+      --surface: #1e1e21;
+      --text: #ececee;
+      --muted: #9a9aa2;
+      --border: #333338;
+      --accent: #6cc4a8;
+      --accent-text: #0f1f1a;
+      --focus: #6cc4a855;
+      --code-bg: #26262a;
+      --weak: #f08080;
+      --fair: #e0b050;
+      --good: #7ab8e8;
+      --strong: #6cc4a8;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Vazirmatn", system-ui, sans-serif;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  .back { color: var(--muted); text-decoration: none; font-size: .95rem; }
+  .back:hover { color: var(--accent); }
+  .header-end { display: inline-flex; align-items: center; gap: 12px; }
+  .lang-toggle { min-height: 32px; padding: 2px 12px; font-size: .85rem; color: var(--muted); }
+  .embedded .back, .embedded .lang-toggle { display: none; }
+  .lead { color: var(--muted); margin: 4px 0 16px; }
+  button {
+    font: inherit;
+    font-size: .95rem;
+    padding: 8px 14px;
+    min-height: 40px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin: 0 0 16px;
+  }
+  /* The password is Latin and symbols in any UI language, so it is always LTR. */
+  .output {
+    display: block;
+    width: 100%;
+    padding: 12px 14px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 1.15rem;
+    color: var(--text);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    direction: ltr;
+    text-align: left;
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .meter { height: 8px; margin-top: 14px; background: var(--code-bg); border-radius: 999px; overflow: hidden; }
+  .meter span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--weak); transition: width .2s; }
+  .strength { margin: 6px 0 0; color: var(--muted); font-size: .9rem; }
+  .strength b { color: var(--text); font-weight: 600; }
+  .status { color: var(--muted); font-size: .9rem; margin: 8px 0 0; }
+  .status:empty { display: none; }
+  .options { display: grid; gap: 14px; }
+  .row-label { color: var(--muted); font-size: .95rem; }
+  .range { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .range input[type=range] { flex: 1 1 auto; min-width: 0; accent-color: var(--accent); }
+  .range input[type=number] {
+    flex: 0 0 5em;
+    min-height: 40px;
+    padding: 4px 8px;
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-align: center;
+  }
+  .checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 16px; }
+  .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; flex: 0 0 auto; }
+  .check code { font-size: .85em; color: var(--muted); direction: ltr; unicode-bidi: isolate; }
+  .warn { color: var(--weak); font-size: .9rem; margin: 0; min-height: 0; }
+  .warn:empty { display: none; }
+  footer { margin-top: 28px; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 data-i18n="title">ساخت رمز</h1>
+    <span class="header-end">
+      <button type="button" class="lang-toggle" id="langToggle"></button>
+      <a class="back" href="../index.html" data-i18n="back">همه‌ی ابزارها ←</a>
+    </span>
+  </header>
+  <p class="lead" data-i18n="lead">رمزهای تصادفی و قوی، ساخته‌شده در همین مرورگر.</p>
+
+  <section class="card" data-i18n-aria="result" aria-label="رمز">
+    <input class="output" id="output" type="text" readonly autocomplete="off" spellcheck="false" data-i18n-aria="password" aria-label="رمز ساخته‌شده">
+    <div class="meter" aria-hidden="true"><span id="meterFill"></span></div>
+    <p class="strength" id="strength" aria-live="polite"></p>
+    <div class="actions">
+      <button type="button" class="primary" id="copy" data-i18n="copy">کپی</button>
+      <button type="button" id="regen" data-i18n="regen">رمز تازه</button>
+    </div>
+    <p class="status" id="status" role="status"></p>
+  </section>
+
+  <section class="card options" data-i18n-aria="options" aria-label="تنظیمات">
+    <div>
+      <label class="row-label" for="length" data-i18n="length">طول</label>
+      <div class="range">
+        <input type="range" id="length" min="4" max="128" value="20">
+        <input type="number" id="lengthNum" min="4" max="128" value="20" data-i18n-aria="length" aria-label="طول">
+      </div>
+    </div>
+    <div class="checks">
+      <label class="check"><input type="checkbox" id="lower" checked> <span data-i18n="lower">حروف کوچک</span> <code>a–z</code></label>
+      <label class="check"><input type="checkbox" id="upper" checked> <span data-i18n="upper">حروف بزرگ</span> <code>A–Z</code></label>
+      <label class="check"><input type="checkbox" id="digits" checked> <span data-i18n="digits">رقم‌ها</span> <code>0–9</code></label>
+      <label class="check"><input type="checkbox" id="symbols" checked> <span data-i18n="symbols">نمادها</span> <code>!@#$%…</code></label>
+      <label class="check"><input type="checkbox" id="noAmbiguous"> <span data-i18n="noAmbiguous">بدون نویسه‌های هم‌شکل</span> <code>Il1O0o</code></label>
+      <label class="check"><input type="checkbox" id="eachSet" checked> <span data-i18n="eachSet">از هر دسته دست‌کم یکی</span></label>
+    </div>
+    <p class="warn" id="warn" role="alert"></p>
+  </section>
+
+  <footer data-i18n="footer">رمز با crypto.getRandomValues در همین مرورگر ساخته می‌شود؛ نه ذخیره می‌شود و نه به جایی فرستاده می‌شود.</footer>
+</div>
+
+<script>
+  'use strict';
+  // Character sets. Symbols avoid quotes, backslash and space, which break
+  // when a password is pasted into a shell, a .env file or JSON.
+  const SETS = {
+    lower: 'abcdefghijklmnopqrstuvwxyz',
+    upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    digits: '0123456789',
+    symbols: '!#$%&()*+,-./:;<=>?@[]^_{|}~',
+  };
+  const AMBIGUOUS = 'Il1O0o|';
+
+  // Uniform integer in [0, n) from the CSPRNG. Plain `v % n` favours the low
+  // values when 2^32 is not a multiple of n (modulo bias), so values from the
+  // incomplete last block are thrown away and drawn again. The old pwd-gen used
+  // Math.random, which is not a cryptographic generator.
+  const buf = new Uint32Array(1);
+  function randomInt(n) {
+    if (!Number.isInteger(n) || n < 1 || n > 0x100000000) throw new RangeError('n out of range');
+    const limit = Math.floor(0x100000000 / n) * n;
+    let v;
+    do { crypto.getRandomValues(buf); v = buf[0]; } while (v >= limit);
+    return v % n;
+  }
+
+  function pools(opts) {
+    const out = [];
+    for (const key of Object.keys(SETS)) {
+      if (!opts[key]) continue;
+      let chars = SETS[key];
+      if (opts.noAmbiguous) chars = [...chars].filter(c => !AMBIGUOUS.includes(c)).join('');
+      out.push(chars);
+    }
+    return out;
+  }
+
+  // With eachSet, one character of every chosen set is placed first and the
+  // whole password is then shuffled (Fisher–Yates with the same unbiased
+  // randomInt), so those characters do not sit at predictable positions.
+  function generate(opts) {
+    const sets = pools(opts);
+    if (!sets.length) return '';
+    const all = sets.join('');
+    const chars = [];
+    if (opts.eachSet && opts.length >= sets.length) for (const s of sets) chars.push(s[randomInt(s.length)]);
+    while (chars.length < opts.length) chars.push(all[randomInt(all.length)]);
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join('');
+  }
+
+  // Entropy of the generator, not of the string: length × log2(pool size).
+  // The each-set rule lowers it slightly; for the lengths offered the
+  // difference is under a bit, so the bar stays honest.
+  function entropyBits(opts) {
+    const size = pools(opts).join('').length;
+    return size > 1 ? opts.length * Math.log2(size) : 0;
+  }
+  function level(bits) {
+    if (bits < 45) return 'weak';
+    if (bits < 70) return 'fair';
+    if (bits < 100) return 'good';
+    return 'strong';
+  }
+
+  // UI language (#14), shared by every tool through tools:lang.
+  const STRINGS = {
+    fa: {
+      title: 'ساخت رمز',
+      back: 'همه‌ی ابزارها ←',
+      lead: 'رمزهای تصادفی و قوی، ساخته‌شده در همین مرورگر.',
+      result: 'رمز',
+      password: 'رمز ساخته‌شده',
+      copy: 'کپی',
+      regen: 'رمز تازه',
+      options: 'تنظیمات',
+      length: 'طول',
+      lower: 'حروف کوچک',
+      upper: 'حروف بزرگ',
+      digits: 'رقم‌ها',
+      symbols: 'نمادها',
+      noAmbiguous: 'بدون نویسه‌های هم‌شکل',
+      eachSet: 'از هر دسته دست‌کم یکی',
+      footer: 'رمز با crypto.getRandomValues در همین مرورگر ساخته می‌شود؛ نه ذخیره می‌شود و نه به جایی فرستاده می‌شود.',
+      noSet: 'دست‌کم یک دسته از نویسه‌ها را انتخاب کنید.',
+      copied: 'کپی شد ✓',
+      copyFailed: 'مرورگر اجازه‌ی کپی نداد؛ رمز را انتخاب و با Ctrl+C کپی کنید.',
+      strength: (lvl, bits) => 'قدرت: ' + lvl + ' · حدود ' + bits + ' بیت',
+      weak: 'ضعیف', fair: 'متوسط', good: 'خوب', strong: 'قوی',
+    },
+    en: {
+      title: 'Password generator',
+      back: '← All tools',
+      lead: 'Strong random passwords, made right here in your browser.',
+      result: 'Password',
+      password: 'Generated password',
+      copy: 'Copy',
+      regen: 'New password',
+      options: 'Options',
+      length: 'Length',
+      lower: 'Lowercase',
+      upper: 'Uppercase',
+      digits: 'Digits',
+      symbols: 'Symbols',
+      noAmbiguous: 'No look-alike characters',
+      eachSet: 'At least one of each',
+      footer: 'Passwords are made with crypto.getRandomValues in this browser; they are never stored or sent anywhere.',
+      noSet: 'Choose at least one character set.',
+      copied: 'Copied ✓',
+      copyFailed: 'The browser did not allow copying; select the password and press Ctrl+C.',
+      strength: (lvl, bits) => 'Strength: ' + lvl + ' · about ' + bits + ' bits',
+      weak: 'weak', fair: 'fair', good: 'good', strong: 'strong',
+    },
+  };
+  const LANG_KEY = 'tools:lang';
+  function initialLang() {
+    const asked = new URLSearchParams(location.search).get('lang');
+    if (asked === 'fa' || asked === 'en') return asked;
+    try {
+      const saved = localStorage.getItem(LANG_KEY);
+      if (saved === 'fa' || saved === 'en') return saved;
+    } catch (e) {}
+    return (navigator.languages || [navigator.language]).some(l => /^fa(-|$)/i.test(l)) ? 'fa' : 'en';
+  }
+  let lang = initialLang();
+  const t = key => STRINGS[lang][key];
+  const num = n => n.toLocaleString(lang === 'fa' ? 'fa-IR' : 'en-US');
+
+  const $ = id => document.getElementById(id);
+  const output = $('output'), statusEl = $('status'), warnEl = $('warn');
+  const lengthRange = $('length'), lengthNum = $('lengthNum');
+  const boxes = ['lower', 'upper', 'digits', 'symbols', 'noAmbiguous', 'eachSet'];
+
+  // Only the options are remembered, never a password.
+  const OPTS_KEY = 'pwd-gen:options';
+  function readOpts() {
+    const opts = { length: Math.min(128, Math.max(4, parseInt(lengthNum.value, 10) || 20)) };
+    for (const id of boxes) opts[id] = $(id).checked;
+    return opts;
+  }
+  function loadOpts() {
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(OPTS_KEY) || 'null'); } catch (e) {}
+    if (!saved || typeof saved !== 'object') return;
+    const n = Number(saved.length);
+    if (Number.isInteger(n) && n >= 4 && n <= 128) lengthRange.value = lengthNum.value = n;
+    for (const id of boxes) if (typeof saved[id] === 'boolean') $(id).checked = saved[id];
+  }
+  function saveOpts(opts) {
+    try { localStorage.setItem(OPTS_KEY, JSON.stringify(opts)); } catch (e) {}
+  }
+
+  let statusTimer = 0;
+  function say(msg) {
+    statusEl.textContent = msg;
+    clearTimeout(statusTimer);
+    if (msg) statusTimer = setTimeout(() => { statusEl.textContent = ''; }, 2500);
+  }
+
+  function showStrength(opts) {
+    const bits = entropyBits(opts);
+    const lvl = level(bits);
+    const fill = $('meterFill');
+    fill.style.width = Math.min(100, bits / 128 * 100) + '%';
+    fill.style.background = 'var(--' + lvl + ')';
+    $('strength').replaceChildren();
+    if (!bits) return;
+    const [before, after] = t('strength')('\u0000', num(Math.round(bits))).split('\u0000');
+    const b = document.createElement('b');
+    b.textContent = t(lvl);
+    $('strength').append(before, b, after);
+    $('strength').dataset.level = lvl;
+  }
+
+  function refresh() {
+    const opts = readOpts();
+    saveOpts(opts);
+    const ok = pools(opts).length > 0;
+    warnEl.textContent = ok ? '' : t('noSet');
+    output.value = ok ? generate(opts) : '';
+    $('copy').disabled = !ok;
+    showStrength(opts);
+  }
+
+  async function copy() {
+    if (!output.value) return;
+    try {
+      await navigator.clipboard.writeText(output.value);
+      say(t('copied'));
+    } catch (e) {
+      output.select();
+      say(t('copyFailed'));
+    }
+  }
+
+  function applyLang() {
+    const root = document.documentElement;
+    root.lang = lang;
+    root.dir = lang === 'fa' ? 'rtl' : 'ltr';
+    document.title = t('title');
+    for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+    for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+    const langToggle = $('langToggle');
+    langToggle.textContent = lang === 'fa' ? 'English' : 'فارسی';
+    langToggle.lang = lang === 'fa' ? 'en' : 'fa';
+    const opts = readOpts();
+    warnEl.textContent = pools(opts).length ? '' : t('noSet');
+    showStrength(opts);
+  }
+  function setLang(next, remember) {
+    if (next !== 'fa' && next !== 'en') return;
+    lang = next;
+    if (remember) try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    applyLang();
+  }
+  $('langToggle').addEventListener('click', () => setLang(lang === 'fa' ? 'en' : 'fa', true));
+  window.addEventListener('storage', e => { if (e.key === LANG_KEY) setLang(e.newValue, false); });
+  window.addEventListener('message', e => {
+    if (e.source === window.parent && e.data && e.data.type === 'tools:lang') setLang(e.data.lang, false);
+  });
+  if (window.parent !== window) document.documentElement.classList.add('embedded');
+
+  lengthRange.addEventListener('input', () => { lengthNum.value = lengthRange.value; refresh(); });
+  lengthNum.addEventListener('change', () => {
+    const n = Math.min(128, Math.max(4, parseInt(lengthNum.value, 10) || 20));
+    lengthNum.value = lengthRange.value = n;
+    refresh();
+  });
+  for (const id of boxes) $(id).addEventListener('change', refresh);
+  $('regen').addEventListener('click', refresh);
+  $('copy').addEventListener('click', copy);
+
+  // Exposed for tests/tools.test.cjs; holds no state worth stealing.
+  window.pwdGen = { randomInt, generate, entropyBits, level, SETS, AMBIGUOUS };
+
+  loadOpts();
+  applyLang();
+  refresh();
+</script>
+</body>
+</html>
